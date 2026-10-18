@@ -84,7 +84,10 @@ function ghPathFor(entryPath) {
 async function ghGetFileBG(path, repoName) {
   const j = await ghRequest("GET", path, undefined, false, repoName);
   if (!j || !j.content) return null;
-  if (j.encoding !== "base64") throw new Error("unexpected encoding " + j.encoding);
+  if (j.encoding !== "base64") {
+    const raw = await ghFetchBlob(j.git_url);
+    return new TextDecoder().decode(new Uint8Array(raw));
+  }
   const b64 = j.content.replace(/\n/g, "");
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
@@ -92,18 +95,22 @@ async function ghGetFileBG(path, repoName) {
   return new TextDecoder().decode(bytes);
 }
 
-async function ghGetFileBinary(path, repoName) {
+async function ghFetchBlob(blobUrl) {
   const cfg = getGithubConfig();
-  const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
-  const res = await fetch(url, {
+  const res = await fetch(blobUrl, {
     headers: {
       "Accept": "application/vnd.github.raw",
       "Authorization": "Bearer " + cfg.token
     }
   });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error("GitHub raw error " + res.status);
-  return await res.arrayBuffer();
+  if (!res.ok) throw new Error("GitHub blob error " + res.status);
+  return res.arrayBuffer();
+}
+
+async function ghGetFileBinary(path, repoName) {
+  const meta = await ghRequest("GET", path, undefined, false, repoName);
+  if (!meta) return null;
+  return ghFetchBlob(meta.git_url);
 }
 
 async function ghPutFileBG(path, contentStr, message, repoName) {

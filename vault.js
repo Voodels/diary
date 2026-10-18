@@ -104,9 +104,9 @@ const Vault = (() => {
   }
 
   async function readEntryImage(imageId, key) {
-    const raw = await ghGetFileBG(imagePath(imageId), dataRepo());
-    if (!raw) throw new Error("image missing");
-    return decryptToBytes(key, raw);
+    const buf = await ghGetFileBinary(imagePath(imageId), dataRepo());
+    if (!buf || !buf.byteLength) throw new Error("image missing");
+    return decryptToBytes(key, new TextDecoder().decode(new Uint8Array(buf)));
   }
 
   return {

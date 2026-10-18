@@ -678,7 +678,7 @@ async function resolveImages(pane) {
       img.alt = s.dataset.name || "encrypted image";
       s.replaceWith(img);
     } catch (err) {
-      s.textContent = "image unavailable";
+      s.textContent = "image unavailable" + (err && err.message ? ": " + err.message : "");
       s.classList.add("err");
     }
   }
