@@ -110,9 +110,13 @@ const Moods = (() => {
 </svg>`;
   }
 
-  function mount(el) {
+  function mount(el, portraitUrl) {
     host = el;
-    el.innerHTML = svg();
+    if (portraitUrl) {
+      el.innerHTML = `<img class="portrait" src="${portraitUrl}" alt="her">`;
+    } else {
+      el.innerHTML = svg();
+    }
     setMood(current, true);
   }
 

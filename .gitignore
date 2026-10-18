@@ -1,0 +1,5 @@
+art/*
+!art/her-gate.webp
+node_modules/
+__pycache__/
+*.pyc

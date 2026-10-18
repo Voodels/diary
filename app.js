@@ -109,20 +109,37 @@ async function unlockAttempt() {
   APP.gate.busy = true;
   el("lockMsg").textContent = "";
   try {
-    const cfg = getGithubConfig();
     const hint = deriveRepoFromLocation();
+    if (hint) {
+      const metaRaw = await ghGetFilePublic(hint.owner, hint.repo, VAULT_PATHS.meta);
+      const meta = metaRaw ? JSON.parse(metaRaw) : null;
+      if (!meta) {
+        if (getGithubConfig() && getGithubConfig().token) {
+          const r = await Vault.unlock(pass);
+          APP.gate.stage = 3;
+          Moods.setMood("gloat");
+          setTimeout(() => afterUnlock(r.key, r.meta), 550);
+          return;
+        }
+        Moods.setMood("curious");
+        showScreen("setup");
+        el("setupMsg").className = "hint";
+        el("setupMsg").textContent = "No vault yet. Paste the token once, claim her sentence below, then she will always be on this screen.";
+        el("setupWaifu").focus();
+        return;
+      }
+      const { key } = await Vault.unlockWithMeta(pass, meta);
+      APP.gate.stage = 3;
+      Moods.setMood("gloat");
+      setTimeout(() => afterUnlock(key, meta, hint), 550);
+      return;
+    }
+    const cfg = getGithubConfig();
     if (cfg && cfg.token) {
       const { key, meta } = await Vault.unlock(pass);
       APP.gate.stage = 3;
       Moods.setMood("gloat");
       setTimeout(() => afterUnlock(key, meta), 550);
-    } else if (hint) {
-      const metaRaw = await ghGetFilePublic(hint.owner, hint.repo, VAULT_PATHS.meta);
-      const meta = metaRaw ? JSON.parse(metaRaw) : null;
-      const { key } = await Vault.unlockWithMeta(pass, meta);
-      APP.gate.stage = 3;
-      Moods.setMood("gloat");
-      setTimeout(() => afterUnlock(key, meta, hint), 550);
     } else {
       el("connectBox").open = true;
       el("lockMsg").textContent = "Connect GitHub first (below).";
@@ -473,7 +490,7 @@ async function saveSettings() {
 }
 
 function wire() {
-  Moods.mount(el("avatarHost"));
+  Moods.mount(el("avatarHost"), "art/her-gate.webp");
   const hint = deriveRepoFromLocation();
   if (hint) {
     if (!el("setupOwner").value) el("setupOwner").value = hint.owner;
