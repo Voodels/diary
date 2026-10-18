@@ -949,9 +949,74 @@ function refreshSettingsInputs() {
   el("setToken").value = cfg.token || "";
   el("setBranch").value = cfg.branch || "main";
   el("diagBox").value = Log.format();
+  const argOk = typeof argon2Ready === "function" && argon2Ready();
+  const m = APP.meta;
+  if (!m) {
+    el("kdfStatus").textContent = "no vault open";
+    el("kdfUpgradeBtn").hidden = true;
+    return;
+  }
+  if (m.kdf === "argon2id") {
+    el("kdfStatus").textContent = "argon2id — strongest available, nothing to do";
+    el("kdfUpgradeBtn").hidden = true;
+  } else if (!argOk) {
+    el("kdfStatus").textContent = "pbkdf2-" + (m.iters || 310000) + " — argon2 unavailable on this device (old browser?)";
+    el("kdfUpgradeBtn").hidden = true;
+  } else {
+    el("kdfStatus").textContent = "pbkdf2-" + (m.iters || 310000) + " — argon2id is 5-10× more brute-force resistant";
+    el("kdfUpgradeBtn").hidden = false;
+  }
+}
+
+async function runKdfUpgrade() {
+  const btn = el("kdfStartBtn");
+  const pass = Vault.normalizeWaifu(el("kdfPass").value);
+  if (!pass) { el("kdfProgress").hidden = false; el("kdfProgress").textContent = "empty answer"; return; }
+  btn.disabled = true;
+  el("kdfCancelBtn").hidden = true;
+  el("kdfModalCloseBtn").hidden = true;
+  el("kdfPass").disabled = true;
+  el("kdfProgress").hidden = false;
+  el("kdfProgress").textContent = "deriving keys...";
+  try {
+    const r = await Vault.upgradeKdf(pass, msg => { el("kdfProgress").textContent = msg; });
+    APP.key = r.key;
+    APP.meta = r.meta;
+    Vault.invalidateCache();
+    el("kdfProgress").textContent = `done — pages re-enc: ${r.ok}, already ok: ${r.skipped}, unreadable skipped: ${r.failed}`;
+    Log.push({ msg: "kdf upgrade to argon2id ok:" + r.ok + " skipped:" + r.skipped + " failed:" + r.failed });
+    toast("Encryption upgraded to Argon2id", "ok");
+    setTimeout(() => {
+      modalClose("kdfModal");
+      modalClose("settingsModal");
+      refreshSettingsInputs();
+    }, 1400);
+  } catch (err) {
+    Log.push({ msg: "kdf upgrade failed: " + err.message });
+    el("kdfProgress").textContent = "failed — nothing was broken: " + err.message;
+    toast("Upgrade failed: " + err.message, "err");
+  } finally {
+    btn.disabled = false;
+    el("kdfCancelBtn").hidden = false;
+    el("kdfModalCloseBtn").hidden = false;
+    el("kdfPass").disabled = false;
+    el("kdfPass").value = "";
+  }
 }
 
 function wireDiagnostics() {
+  el("kdfUpgradeBtn").onclick = () => {
+    el("kdfPass").value = "";
+    el("kdfProgress").hidden = true;
+    el("kdfProgress").textContent = "";
+    modalClose("settingsModal");
+    modalOpen("kdfModal");
+    el("kdfPass").focus();
+  };
+  el("kdfStartBtn").onclick = runKdfUpgrade;
+  el("kdfCancelBtn").onclick = () => modalClose("kdfModal");
+  el("kdfModalCloseBtn").onclick = () => modalClose("kdfModal");
+  el("kdfPass").addEventListener("keydown", e => { if (e.key === "Enter" && !el("kdfStartBtn").disabled) runKdfUpgrade(); });
   el("diagCopyBtn").onclick = async () => {
     const text = Log.format();
     if (!text) { toast("Log is empty", "ok"); return; }

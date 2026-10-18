@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body class="dark">
 
@@ -214,6 +214,11 @@
     <label>Branch <input id="setBranch" placeholder="main"></label>
     <label>Token <input id="setToken" type="password"></label>
     <button id="saveSettingsBtn" class="btn primary full">Save</button>
+    <div class="kdf-box">
+      <div class="diag-head"><strong>Encryption</strong></div>
+      <div id="kdfStatus" class="hint"></div>
+      <button id="kdfUpgradeBtn" class="btn soft full" hidden>Upgrade to Argon2id</button>
+    </div>
     <div class="diag-box">
       <div class="diag-head">Diagnostics — last errors on this device</div>
       <textarea id="diagBox" readonly rows="6" spellcheck="false" placeholder="no errors logged"></textarea>
@@ -221,6 +226,19 @@
         <button id="diagCopyBtn" class="btn soft sm">Copy</button>
         <button id="diagClearBtn" class="btn ghost sm">Clear log</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="kdfModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head"><strong>Upgrade encryption</strong><span class="spacer"></span><button id="kdfModalCloseBtn" class="icon-btn">✕</button></div>
+    <p class="hint">Argon2id re-encrypts every page, image and the token. Keep this open until it finishes — do not close the tab.</p>
+    <label>Your waifu answer <input id="kdfPass" type="password" autocomplete="off" spellcheck="false"></label>
+    <div id="kdfProgress" class="hint" hidden></div>
+    <div class="modal-btns">
+      <button id="kdfCancelBtn" class="btn ghost">Cancel</button>
+      <button id="kdfStartBtn" class="btn primary">Begin upgrade</button>
     </div>
   </div>
 </div>
@@ -239,13 +257,15 @@
 
 <div id="toasts"></div>
 
-<script src="util.js?v=8"></script>
-<script src="logging.js?v=8"></script>
-<script src="crypto.js?v=8"></script>
-<script src="github.js?v=8"></script>
-<script src="markdown.js?v=8"></script>
-<script src="avatar.js?v=8"></script>
-<script src="vault.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="argon2/loader.js?v=9"></script>
+<script src="argon2/lib/argon2.js?v=9"></script>
+<script src="util.js?v=9"></script>
+<script src="logging.js?v=9"></script>
+<script src="crypto.js?v=9"></script>
+<script src="github.js?v=9"></script>
+<script src="markdown.js?v=9"></script>
+<script src="avatar.js?v=9"></script>
+<script src="vault.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

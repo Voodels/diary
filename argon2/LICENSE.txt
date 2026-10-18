@@ -1,0 +1,3 @@
+argon2-browser 1.18.0
+https://github.com/antelle/argon2-browser
+MIT License - Copyright (c) 2017 Daniel Montesinos
