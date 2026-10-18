@@ -3,7 +3,7 @@ const APP = {
   unlocked: false,
   entries: [],
   meta: null,
-  filter: { search: "", tag: null },
+  filter: { search: "", tag: null, sort: "new" },
   autoLockTimer: null,
   gate: {
     stage: 0,
@@ -38,6 +38,29 @@ function escapeHtml(s) {
 function fmtDateTime(iso) {
   const d = new Date(iso);
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function fmtShort(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function fmtClock(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function wordsOf(text) {
+  const clean = String(text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " ").trim();
+  return clean ? clean.split(/\s+/).length : 0;
+}
+
+const TAG_PALETTE = ["#e8a87c", "#7fd4c1", "#a8b8f0", "#e79fd0", "#c9b26a", "#9ad48a", "#e0908f", "#8bc4e8"];
+
+function tagColor(t) {
+  let h = 0;
+  for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return TAG_PALETTE[h % TAG_PALETTE.length];
 }
 
 function uid() {
@@ -192,12 +215,23 @@ function resetGate() {
   Moods.setMood("idle", true);
 }
 
+function mountMiniAvatars() {
+  const src = el("avatarHost");
+  if (!src || !src.innerHTML) return;
+  const svgHtml = src.innerHTML;
+  document.querySelectorAll("[data-mini-avatar]").forEach(h => {
+    h.innerHTML = svgHtml;
+    h.querySelectorAll("g.face").forEach(g => g.classList.toggle("active", g.dataset.face === "love"));
+  });
+}
+
 async function afterUnlock(key, meta, hint) {
   APP.key = key;
   APP.meta = meta;
   APP.unlocked = true;
   showScreen("app");
   document.body.classList.add("unlocked");
+  closeEditor();
   el("loadingMsg").textContent = "Decrypting entries...";
   const cfg = getGithubConfig();
   if (!cfg || !cfg.token) {
@@ -205,9 +239,7 @@ async function afterUnlock(key, meta, hint) {
   }
   try {
     APP.entries = await Vault.listEntries();
-    renderGrid();
-    renderTags();
-    renderRecent();
+    renderAll();
     el("loadingMsg").textContent = "";
     resetIdleTimer();
   } catch (err) {
@@ -238,37 +270,53 @@ function resetIdleTimer() {
   }
 }
 
+/* ── sidebar / tabs / list ─────────────────────── */
+
+function renderAll() {
+  renderList();
+  renderTags();
+  renderTabs();
+}
+
 function renderTags() {
   const counts = {};
   for (const e of APP.entries) for (const t of e.meta.tags || []) counts[t] = (counts[t] || 0) + 1;
-  const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-  el("tagList").innerHTML =
-    `<div class="tag-item${APP.filter.tag === null ? " active" : ""}" data-tag="">All entries <span class="count">${APP.entries.length}</span></div>` +
-    tags.map(t => `<div class="tag-item${APP.filter.tag === t ? " active" : ""}" data-tag="${escapeHtml(t)}">${escapeHtml(t)} <span class="count">${counts[t]}</span></div>`).join("");
+  const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  el("navAllCount").textContent = APP.entries.length;
+  el("navAll").classList.toggle("active", !APP.filter.tag);
+  el("tagList").innerHTML = tags.length
+    ? tags.map(t => `<div class="tag-item${APP.filter.tag === t ? " active" : ""}" data-tag="${escapeHtml(t)}">
+        <span class="dot" style="--dot:${tagColor(t)}"></span>${escapeHtml(t)}
+        <span class="count">${counts[t]}</span>
+      </div>`).join("")
+    : `<div class="side-empty">no tags yet</div>`;
   el("tagList").querySelectorAll(".tag-item").forEach(d => {
     d.onclick = () => {
-      APP.filter.tag = d.dataset.tag || null;
-      renderTags();
-      renderGrid();
+      APP.filter.tag = d.dataset.tag;
+      renderAll();
     };
   });
 }
 
-function renderRecent() {
-  const list = APP.entries.slice(0, 9);
-  const box = el("recentList");
-  box.innerHTML = list.length
-    ? list.map(e => `<div class="recent-item" data-id="${escapeHtml(e.id)}">${escapeHtml(e.meta.title || "Untitled")}</div>`).join("")
-    : `<div class="recent-item" style="cursor:default">nothing yet</div>`;
-  box.querySelectorAll(".recent-item[data-id]").forEach(d => {
-    d.onclick = () => openEditor(d.dataset.id);
+function renderTabs() {
+  const tag = APP.filter.tag;
+  el("tabsRow").innerHTML =
+    `<button class="tab${!tag ? " active" : ""}" data-tab="">All</button>` +
+    (tag ? `<button class="tab active" data-tab="${escapeHtml(tag)}">${escapeHtml(tag)} <span class="tab-x">×</span></button>` : "");
+  el("tabsRow").querySelectorAll(".tab").forEach(b => {
+    b.onclick = ev => {
+      if (ev.target.classList.contains("tab-x") || !b.dataset.tab) {
+        APP.filter.tag = null;
+        renderAll();
+      }
+    };
   });
 }
 
 function visibleEntries() {
   const f = APP.filter;
   const q = f.search.trim().toLowerCase();
-  return APP.entries.filter(e => {
+  const list = APP.entries.filter(e => {
     if (f.tag && !(e.meta.tags || []).includes(f.tag)) return false;
     if (!q) return true;
     return (
@@ -277,35 +325,48 @@ function visibleEntries() {
       (e.meta.tags || []).some(t => t.toLowerCase().includes(q))
     );
   });
+  return list.sort((a, b) => {
+    const av = a.meta.updated || a.meta.created || "";
+    const bv = b.meta.updated || b.meta.created || "";
+    return f.sort === "old" ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
 }
 
-function renderGrid() {
-  const grid = el("grid");
+function renderList() {
   const list = visibleEntries();
-  el("emptyState").style.display = list.length ? "none" : "";
-  grid.innerHTML = list.map(e => {
+  el("listCount").textContent = list.length === 1 ? "1 note" : list.length + " notes";
+  el("emptyState").hidden = !!list.length;
+  const cur = el("editor").dataset.id;
+  el("grid").innerHTML = list.map(e => {
     const title = e.meta.title || "Untitled";
-    const text = (e.text || "").slice(0, 140);
-    const tags = (e.meta.tags || []).map(t => `<span class="chip">${escapeHtml(t)}</span>`).join("");
-    return `<div class="card" data-id="${escapeHtml(e.id)}">
-      <div class="card-title">${escapeHtml(title)}</div>
-      <div class="card-date">${fmtDateTime(e.meta.updated || e.meta.created)}</div>
-      <div class="card-excerpt">${escapeHtml(text)}</div>
-      <div class="card-tags">${tags}</div>
-      <div class="card-actions"><button class="icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button></div>
+    const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " [image] ").replace(/\s+/g, " ").trim();
+    const w = wordsOf(e.text || "");
+    const tags = e.meta.tags || [];
+    const tagChip = tags.length
+      ? `<span class="chip sm"><span class="dot" style="--dot:${tagColor(tags[0])}"></span>${escapeHtml(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ""}</span>`
+      : "";
+    const upd = e.meta.updated || e.meta.created;
+    return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}">
+      <div class="nc-title">${escapeHtml(title)}</div>
+      <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
+      <div class="nc-meta">
+        <span class="nc-w">${w === 1 ? "1 word" : w + " words"}</span>
+        ${tagChip}
+        <span class="nc-time">${escapeHtml(fmtClock(upd))}</span>
+      </div>
+      <button class="nc-del icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button>
     </div>`;
   }).join("");
-  grid.querySelectorAll(".card").forEach(c => {
+  el("grid").querySelectorAll(".note-card").forEach(c => {
     c.onclick = ev => {
-      const del = ev.target.closest("[data-act=del]");
-      if (del) return;
+      if (ev.target.closest("[data-act=del]")) return;
       openEditor(c.dataset.id);
     };
   });
-  grid.querySelectorAll('[data-act="del"]').forEach(b => {
+  el("grid").querySelectorAll('[data-act="del"]').forEach(b => {
     b.onclick = ev => {
       ev.stopPropagation();
-      deleteEntry(b.closest(".card").dataset.id);
+      deleteEntry(b.closest(".note-card").dataset.id);
     };
   });
 }
@@ -320,31 +381,63 @@ async function deleteEntry(id) {
     for (const img of e.meta.images || []) {
       try { await Vault.removeFile(Vault.imagePath(img.id), "vault update"); } catch (err) {}
     }
-    renderGrid();
-    renderTags();
-    renderRecent();
+    if (el("editor").dataset.id === id) closeEditor();
+    renderAll();
     toast("Entry deleted", "ok");
   } catch (err) {
     toast("Delete failed: " + err.message, "err");
   }
 }
 
+/* ── editor ────────────────────────────────────── */
+
+let ED_TAGS = [];
+
+function renderEdTags() {
+  el("edTagChips").innerHTML = ED_TAGS.map((t, i) =>
+    `<span class="chip chip-tag"><span class="dot" style="--dot:${tagColor(t)}"></span>${escapeHtml(t)}<button class="chip-x" data-i="${i}" aria-label="remove tag">×</button></span>`
+  ).join("");
+  el("edTagChips").querySelectorAll(".chip-x").forEach(b => {
+    b.onclick = () => {
+      ED_TAGS.splice(+b.dataset.i, 1);
+      renderEdTags();
+    };
+  });
+}
+
+function commitTagInput() {
+  const raw = el("edTags").value;
+  const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+  for (const p of parts) if (!ED_TAGS.includes(p)) ED_TAGS.push(p);
+  el("edTags").value = "";
+  if (parts.length) renderEdTags();
+}
+
 function openEditor(id) {
   const e = id ? APP.entries.find(x => x.id === id) : null;
   el("editor").dataset.id = e ? e.id : "";
+  el("editor").classList.add("open");
   el("edTitle").value = e ? e.meta.title || "" : "";
-  el("edTags").value = e ? (e.meta.tags || []).join(", ") : "";
+  ED_TAGS = e ? [...(e.meta.tags || [])] : [];
+  renderEdTags();
+  el("edTags").value = "";
   el("edText").value = e ? e.text || "" : "";
-  el("edDate").textContent = e ? "Last edited " + fmtDateTime(e.meta.updated || e.meta.created) : "New entry";
-  el("previewPane").hidden = !isWide();
+  el("edDate").textContent = fmtShort(e ? (e.meta.created || e.meta.updated) : new Date().toISOString());
+  el("edEdited").textContent = e ? "edited " + fmtDateTime(e.meta.updated || e.meta.created) : "unsaved";
+  el("previewPane").hidden = !isSplit();
   el("edText").hidden = false;
   hideSlashMenu();
   updateCount();
-  if (isWide()) renderPreviewLive();
-  modalOpen("editor");
-  const sc = document.querySelector(".page-scroll");
+  if (isSplit()) renderPreviewLive();
+  renderList();
+  const sc = document.querySelector(".ed-page");
   if (sc) sc.scrollTop = 0;
   el("edTitle").focus();
+}
+
+function closeEditor() {
+  el("editor").classList.remove("open");
+  renderList();
 }
 
 async function saveEntry() {
@@ -352,7 +445,8 @@ async function saveEntry() {
   const id = el("editor").dataset.id || uid();
   const existing = APP.entries.find(x => x.id === id);
   const title = el("edTitle").value.trim();
-  const tags = el("edTags").value.split(",").map(s => s.trim()).filter(Boolean);
+  commitTagInput();
+  const tags = [...ED_TAGS];
   const now = new Date().toISOString();
   const entry = {
     id,
@@ -373,17 +467,14 @@ async function saveEntry() {
     }
     const i = APP.entries.findIndex(x => x.id === id);
     if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
-    APP.entries.sort((a, b) => (b.meta.updated || "").localeCompare(a.meta.updated || ""));
-    modalClose("editor");
-    renderGrid();
-    renderTags();
-    renderRecent();
+    closeEditor();
+    renderAll();
     toast("Saved & synced to GitHub", "ok");
   } catch (err) {
     if (err.status === 409) {
       toast("Conflict: file changed remotely. Reloading entries...", "err");
       APP.entries = await Vault.listEntries();
-      renderGrid();
+      renderAll();
     } else {
       toast("Save failed: " + err.message, "err");
     }
@@ -409,6 +500,68 @@ function updateCount() {
   const v = el("edText").value;
   const words = v.trim() ? v.trim().split(/\s+/).length : 0;
   el("edCount").textContent = words === 1 ? "1 word" : words + " words";
+}
+
+function afterEdit() {
+  updateCount();
+  if (!el("previewPane").hidden) renderPreviewLive();
+}
+
+function tbWrap(mark) {
+  const ta = el("edText");
+  const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
+  const chosen = v.slice(s, e2) || "text";
+  const ins = mark + chosen + mark;
+  ta.value = v.slice(0, s) + ins + v.slice(e2);
+  ta.focus();
+  ta.setSelectionRange(s + mark.length, s + mark.length + chosen.length);
+  afterEdit();
+}
+
+function tbPrefix(prefix) {
+  const ta = el("edText");
+  const v = ta.value;
+  const pos = ta.selectionStart;
+  const ls = v.lastIndexOf("\n", pos - 1) + 1;
+  const le = v.indexOf("\n", pos);
+  const lineEnd = le === -1 ? v.length : le;
+  const line = v.slice(ls, lineEnd);
+  const had = line.startsWith(prefix);
+  const newLine = had ? line.slice(prefix.length) : prefix + line;
+  const delta = had ? -prefix.length : prefix.length;
+  ta.value = v.slice(0, ls) + newLine + v.slice(lineEnd);
+  const np = Math.max(ls, pos + delta);
+  ta.focus();
+  ta.setSelectionRange(np, np);
+  afterEdit();
+}
+
+function tbInsert(text) {
+  const ta = el("edText");
+  const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
+  const ins = (s > 0 && v[s - 1] !== "\n" ? "\n" : "") + text + "\n";
+  ta.value = v.slice(0, s) + ins + v.slice(e2);
+  const np = s + ins.length;
+  ta.focus();
+  ta.setSelectionRange(np, np);
+  afterEdit();
+}
+
+function tbAction(act) {
+  switch (act) {
+    case "h1": tbPrefix("# "); break;
+    case "h2": tbPrefix("## "); break;
+    case "quote": tbPrefix("> "); break;
+    case "bullet": tbPrefix("- "); break;
+    case "todo": tbPrefix("- [ ] "); break;
+    case "num": tbPrefix("1. "); break;
+    case "divider": tbInsert("---"); break;
+    case "bold": tbWrap("**"); break;
+    case "italic": tbWrap("*"); break;
+    case "strike": tbWrap("~~"); break;
+    case "code": tbWrap("`"); break;
+    case "img": el("imageInput").click(); break;
+  }
 }
 
 function sniffMime(b) {
@@ -447,8 +600,8 @@ async function resolveImages(pane) {
 
 let previewTimer = null;
 
-function isWide() {
-  return window.matchMedia("(min-width: 1100px)").matches;
+function isSplit() {
+  return window.matchMedia("(min-width: 1300px)").matches;
 }
 
 function renderPreviewLive() {
@@ -473,8 +626,7 @@ async function handleImages(files) {
       toast("Image upload failed: " + err.message, "err");
     }
   }
-  updateCount();
-  if (!el("previewPane").hidden) renderPreviewLive();
+  afterEdit();
 }
 
 async function doCreateVault() {
@@ -656,7 +808,7 @@ function pickSlashItem(i) {
   if (it.id === "img") {
     ta.value = v.slice(0, slashIdx) + v.slice(end);
     ta.selectionStart = ta.selectionEnd = slashIdx;
-    updateCount();
+    afterEdit();
     el("imageInput").click();
     return;
   }
@@ -664,11 +816,12 @@ function pickSlashItem(i) {
   const caret = slashIdx + (it.caret !== undefined ? it.caret : it.ins.length);
   ta.selectionStart = ta.selectionEnd = caret;
   ta.focus();
-  updateCount();
+  afterEdit();
 }
 
 function wire() {
   Moods.mount(el("avatarHost"));
+  mountMiniAvatars();
   const hint = deriveRepoFromLocation();
   if (hint) {
     if (!el("setupOwner").value) el("setupOwner").value = hint.owner;
@@ -681,15 +834,53 @@ function wire() {
   el("createBtn").onclick = doCreateVault;
   el("setupWaifu2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
 
-  el("newEntryBtn").onclick = () => openEditor(null);
+  const newPage = () => {
+    APP.filter.tag = null;
+    APP.filter.search = "";
+    el("searchBox").value = "";
+    openEditor(null);
+    renderAll();
+  };
+  el("newEntryBtn").onclick = newPage;
+  el("listNewBtn").onclick = newPage;
+  el("edEmptyNew").onclick = newPage;
   el("saveEntryBtn").onclick = saveEntry;
   el("previewBtn").onclick = togglePreview;
+  el("closeEditorBtn").onclick = closeEditor;
   el("lockNowBtn").onclick = lockVault;
   el("settingsBtn").onclick = () => { refreshSettingsInputs(); modalOpen("settingsModal"); };
   el("saveSettingsBtn").onclick = saveSettings;
   el("closeSettingsBtn").onclick = () => modalClose("settingsModal");
-  el("closeEditorBtn").onclick = () => modalClose("editor");
-  el("searchBox").addEventListener("input", e => { APP.filter.search = e.target.value; renderGrid(); });
+  el("searchBox").addEventListener("input", e => { APP.filter.search = e.target.value; renderList(); });
+  el("railNotes").onclick = () => {
+    APP.filter.tag = null;
+    renderAll();
+    el("grid").scrollTop = 0;
+  };
+  el("railSearch").onclick = () => el("searchBox").focus();
+  el("navAll").onclick = () => {
+    APP.filter.tag = null;
+    renderAll();
+  };
+  el("sortBtn").onclick = () => {
+    APP.filter.sort = APP.filter.sort === "new" ? "old" : "new";
+    el("sortBtn").textContent = APP.filter.sort === "new" ? "Newest first" : "Oldest first";
+    renderList();
+  };
+  el("edToolbar").addEventListener("mousedown", ev => {
+    const b = ev.target.closest(".tb-btn");
+    if (!b) return;
+    ev.preventDefault();
+    tbAction(b.dataset.act);
+  });
+  el("edTags").addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitTagInput(); }
+    else if (e.key === "Backspace" && !el("edTags").value && ED_TAGS.length) {
+      ED_TAGS.pop();
+      renderEdTags();
+    }
+  });
+  el("edTags").addEventListener("blur", commitTagInput);
   el("edText").addEventListener("input", () => {
     updateCount();
     slashDetection();
@@ -713,7 +904,10 @@ function wire() {
       if (editorOpen && APP.unlocked && !SLASH.open) { e.preventDefault(); saveEntry(); }
       return;
     }
-    if (e.key === "Escape" && editorOpen && !SLASH.open) { modalClose("editor"); }
+    if (e.key === "Escape" && editorOpen && !SLASH.open) {
+      if (el("settingsModal").classList.contains("open")) return;
+      closeEditor();
+    }
   });
   el("imageInput").addEventListener("change", e => {
     if (APP.key) handleImages([...e.target.files]);
@@ -728,7 +922,7 @@ function wire() {
     handleImages(files);
   });
   window.addEventListener("resize", () => {
-    if (el("editor").classList.contains("open") && isWide() && el("previewPane").hidden) {
+    if (el("editor").classList.contains("open") && isSplit() && el("previewPane").hidden) {
       el("previewPane").hidden = false;
       renderPreviewLive();
     }
@@ -740,7 +934,6 @@ function wire() {
     const msg = ev.reason && ev.reason.message ? ev.reason.message : "sync error";
     try { toast("Error: " + msg, "err"); } catch (e) {}
   });
-  el("addImageBtn").onclick = () => el("imageInput").click();
   el("themeToggle").onclick = () => {
     document.body.classList.toggle("dark");
     localStorage.setItem("ediary_theme", document.body.classList.contains("dark") ? "dark" : "light");
