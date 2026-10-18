@@ -74,20 +74,28 @@ const Vault = (() => {
 
   async function listEntries() {
     const files = await ghListVaultFiles(VAULT_PATHS.entries, dataRepo());
-    const entries = [];
-    for (const name of files) {
-      try {
-        const raw = await ghGetFileBG(VAULT_PATHS.entries + name, dataRepo());
-        const plain = await decryptToString(APP.key, raw);
-        const obj = JSON.parse(plain);
-        obj.id = name.replace(/\.json$/, "");
-        entries.push(obj);
-      } catch (e) {
-        console.warn("skipping unreadable entry", name, e);
+    const out = [];
+    let idx = 0;
+    async function worker() {
+      while (idx < files.length) {
+        const name = files[idx++];
+        try {
+          const raw = await ghGetFileBG(VAULT_PATHS.entries + name, dataRepo());
+          const plain = await decryptToString(APP.key, raw);
+          const obj = JSON.parse(plain);
+          obj.id = name.replace(/\.json$/, "");
+          out.push(obj);
+        } catch (e) {
+          console.warn("skipping unreadable entry", name, e);
+        }
       }
     }
-    entries.sort((a, b) => (b.meta.updated || "").localeCompare(a.meta.updated || ""));
-    return entries;
+    const workers = [];
+    const n = Math.min(6, files.length);
+    for (let k = 0; k < n; k++) workers.push(worker());
+    await Promise.all(n ? workers : [Promise.resolve()]);
+    out.sort((a, b) => (b.meta.updated || "").localeCompare(a.meta.updated || ""));
+    return out;
   }
 
   async function saveEncryptedPath(path, entry) {

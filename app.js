@@ -854,6 +854,33 @@ function renderPreviewLive() {
   resolveImages(pane);
 }
 
+const IMG_MAX_DIM = 2048;
+
+async function maybeDownscale(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const w = bmp.width, h = bmp.height;
+    if (Math.max(w, h) <= IMG_MAX_DIM && file.size < 2.5 * 1024 * 1024) {
+      bmp.close();
+      return { buf: null };
+    }
+    const scale = Math.min(1, IMG_MAX_DIM / Math.max(w, h));
+    const tw = Math.round(w * scale), th = Math.round(h * scale);
+    const c = document.createElement("canvas");
+    c.width = tw; c.height = th;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, tw, th);
+    ctx.drawImage(bmp, 0, 0, tw, th);
+    bmp.close();
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+    const buf = await blob.arrayBuffer();
+    return { buf, note: `${w}×${h}→${tw}×${th}, ${(100 * buf.byteLength / file.size).toFixed(0)}% of original` };
+  } catch (e) {
+    return { buf: null };
+  }
+}
+
 async function handleImages(files) {
   if (!requireLoaded("image upload")) return;
   const list = files.filter(f => f.type.startsWith("image/"));
@@ -863,13 +890,14 @@ async function handleImages(files) {
     n++;
     toast(`Encrypting image ${n}/${list.length} (${(f.size / 1024).toFixed(0)} KB)…`, "ok");
     try {
-      const buf = await f.arrayBuffer();
+      const down = await maybeDownscale(f);
+      const buf = down.buf || await f.arrayBuffer();
       const encPayload = await encryptBytes(APP.key, buf);
       const name = /^image\.\w+$/i.test(f.name || "") ? "pasted image" : (f.name || "image");
       const imageId = uid();
       await Vault.putImage(imageId, encPayload);
       el("edText").value += `\n![${name}](image:${imageId})\n`;
-      toast(`Image ${n}/${list.length} uploaded & encrypted: ${name}`, "ok");
+      toast(`Image ${n}/${list.length} uploaded${down.buf ? " (resized " + down.note + ")" : ""}: ${name}`, "ok");
       saveDraftSoon();
     } catch (err) {
       Log.push({ msg: "image upload failed (" + f.name + "): " + err.message });

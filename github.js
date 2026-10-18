@@ -40,7 +40,8 @@ function repoFor(repoName) {
   return repoName || (cfg && cfg.repo);
 }
 
-async function ghRequest(method, path, body, raw, repoName) {
+async function ghRequest(method, path, body, raw, repoName, attempt) {
+  attempt = attempt || 0;
   const cfg = getGithubConfig();
   if (!cfg) throw new Error("GitHub not configured");
   const url = path.startsWith("http") ? path : GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
@@ -54,6 +55,17 @@ async function ghRequest(method, path, body, raw, repoName) {
     headers,
     body: body === undefined ? undefined : JSON.stringify(body)
   });
+  if ((res.status === 403 || res.status === 429) && attempt === 0) {
+    let msg = "";
+    try { msg = (await res.json()).message || ""; } catch (e) {}
+    const low = msg.toLowerCase();
+    if (low.includes("rate limit") || low.includes("secondary rate")) {
+      const wait = Math.min(parseFloat(res.headers.get("Retry-After")) || 20, 120);
+      console.warn("rate limited — waiting " + wait + "s before a single retry");
+      await new Promise(r => setTimeout(r, wait * 1000));
+      return ghRequest(method, path, body, raw, repoName, 1);
+    }
+  }
   if (res.status === 409) {
     const err = new Error("conflict");
     err.status = 409;
