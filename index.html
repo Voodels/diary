@@ -8,31 +8,38 @@
 </head>
 <body class="dark">
 
-<div id="setupScreen" hidden>
-  <div class="auth-card">
-    <h2>Create your encrypted vault</h2>
-    <p class="hint">One repo, one password. Your diary is encrypted in your browser before it touches GitHub.</p>
-    <label>GitHub owner <input id="setupOwner" placeholder="your-username"></label>
-    <label>Repository <input id="setupRepo" placeholder="diary"></label>
-    <label>Token (fine-grained PAT, Contents: Read+Write) <input id="setupToken" type="password" placeholder="github_pat_..."></label>
-    <label>Password (min 8 chars) <input id="setupPass" type="password"></label>
-    <label>Confirm password <input id="setupPass2" type="password"></label>
-    <button id="createBtn" class="btn primary">Create vault</button>
-    <div id="setupMsg" class="msg"></div>
-    <p class="hint">No password recovery. If you lose it, the diary is gone forever.</p>
+<div id="lockScreen" hidden>
+  <div class="gate">
+    <div id="avatarHost" class="avatar" data-mood="idle"></div>
+    <div class="heart one">♡</div>
+    <div class="heart two">♡</div>
+    <div class="bubble-wrap"><div id="waifuBubble" class="bubble">…</div></div>
+    <div class="question">Your favourite waifu?</div>
+    <input id="gatePass" type="password" autocomplete="off" spellcheck="false" placeholder="answer her…">
+    <div id="lockMsg" class="msg"></div>
+    <p class="hint">lowercase words, separated by - or space · <a href="#" id="goSetup">first time?</a></p>
+    <details id="connectBox">
+      <summary>connect GitHub</summary>
+      <label>Owner <input id="lockOwner" placeholder="your-username"></label>
+      <label>Repository <input id="lockRepo" placeholder="diary"></label>
+      <label>Token <input id="lockToken" type="password" placeholder="github_pat_..."></label>
+      <button id="connectBtn" class="btn ghost full">Connect</button>
+    </details>
   </div>
 </div>
 
-<div id="lockScreen" hidden>
+<div id="setupScreen" hidden>
   <div class="auth-card">
-    <h2>🔒 Encrypted Diary</h2>
-    <label>GitHub owner <input id="lockOwner" placeholder="your-username"></label>
-    <label>Repository <input id="lockRepo" placeholder="diary"></label>
-    <label>Token <input id="lockToken" type="password" placeholder="github_pat_..."></label>
-    <label>Password <input id="lockPass" type="password" placeholder="Your vault password"></label>
-    <button id="lockBtn" class="btn primary">Unlock</button>
-    <div id="lockMsg" class="msg"></div>
-    <p class="hint">First time? <a href="#" id="goSetup">Create a vault</a> instead.</p>
+    <h2>Claim her</h2>
+    <p class="hint">Connect GitHub once. Then your answer to her becomes the vault key — encrypted in your browser, never sent anywhere but as ciphertext.</p>
+    <label>GitHub owner <input id="setupOwner" placeholder="your-username"></label>
+    <label>Repository <input id="setupRepo" placeholder="diary"></label>
+    <label>Token (fine-grained PAT, Contents: Read+Write) <input id="setupToken" type="password" placeholder="github_pat_..."></label>
+    <label>Your favourite waifu? (your key — make it a sentence only you know) <input id="setupWaifu" type="password" placeholder="waifu-sentence…"></label>
+    <label>Confirm her name <input id="setupWaifu2" type="password"></label>
+    <button id="createBtn" class="btn primary">Create vault</button>
+    <div id="setupMsg" class="msg"></div>
+    <p class="hint">No recovery. Lose the answer, lose the diary. · <a href="#" id="goLock">already have a vault?</a></p>
   </div>
 </div>
 
@@ -95,6 +102,9 @@
 
 <script src="crypto.js"></script>
 <script src="github.js"></script>
+<script src="markdown.js"></script>
+<script src="avatar.js"></script>
+<script src="vault.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

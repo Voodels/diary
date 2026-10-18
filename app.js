@@ -4,9 +4,15 @@ const APP = {
   entries: [],
   meta: null,
   filter: { search: "", tag: null },
-  dirty: new Set(),
-  deleted: [],
-  autoLockTimer: null
+  autoLockTimer: null,
+  gate: {
+    stage: 0,
+    lastValue: "",
+    wrongCount: 0,
+    wrongResetTimer: null,
+    autoTimer: null,
+    busy: false
+  }
 };
 
 const IDLE_LOCK_MS = 10 * 60 * 1000;
@@ -14,15 +20,6 @@ const CHECK_TEXT = "ediary-check-v1";
 
 function el(id) {
   return document.getElementById(id);
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function fmtDateTime(iso) {
@@ -57,72 +54,115 @@ function modalClose(id) {
   el(id).classList.remove("open");
 }
 
-function entryPath(e) {
-  return VAULT_PATHS.entries + e.id + "-" + slugify(e.title) + ".json";
+function showScreen(name) {
+  el("setupScreen").hidden = name !== "setup";
+  el("lockScreen").hidden = name !== "gate";
+  el("appScreen").hidden = name !== "app";
 }
 
-function imagePath(imageId) {
-  return VAULT_PATHS.images + imageId + ".bin";
+function gateTokens() {
+  return Vault.normalizeWaifu(el("gatePass").value).split("-").filter(Boolean);
 }
 
-function newMetaJson() {
-  const salt = b64encode(getRandomBytes(16));
-  return { v: 1, salt, iters: PBKDF2_ITERATIONS, check: null, created: new Date().toISOString() };
+const GATE_STAGE_MOODS = ["idle", "curious", "shy", "love"];
+
+function updateGateReactions() {
+  const tokens = gateTokens();
+  const stage = Math.min(3, tokens.length);
+  if (stage !== APP.gate.stage) {
+    APP.gate.stage = stage;
+    Moods.setMood(GATE_STAGE_MOODS[stage]);
+  }
+  clearTimeout(APP.gate.autoTimer);
+  if (stage >= 3) {
+    APP.gate.autoTimer = setTimeout(() => unlockAttempt(), 900);
+  }
 }
 
-async function loadMeta() {
-  const raw = await ghGetFileBG(VAULT_PATHS.meta);
-  if (!raw) return null;
-  return JSON.parse(raw);
+function gateWrong(msgMood) {
+  APP.gate.wrongCount++;
+  clearTimeout(APP.gate.wrongResetTimer);
+  APP.gate.wrongResetTimer = setTimeout(() => { APP.gate.wrongCount = 0; }, 5 * 60 * 1000);
+  const wrongs = ["pout", "tease", "silent"];
+  const mood = wrongs[Math.min(2, APP.gate.wrongCount - 1)];
+  Moods.setMood(mood);
+  el("lockMsg").textContent = msgMood || "";
+  const host = el("avatarHost");
+  host.classList.remove("shake");
+  void host.offsetWidth;
+  host.classList.add("shake");
 }
 
-async function createVault(password) {
-  const meta = newMetaJson();
-  const key = await deriveKey(password, b64decode(meta.salt), meta.iters);
-  meta.check = await encryptString(key, CHECK_TEXT);
-  await ghPutFileBG(VAULT_PATHS.meta, JSON.stringify(meta, null, 2), "initialize vault");
-  return { key, meta };
-}
-
-async function unlockVault(password) {
-  const meta = await loadMeta();
-  if (!meta) throw new Error("No vault found. Create one first.");
-  const key = await deriveKey(password, b64decode(meta.salt), meta.iters);
-  const ok = await verifyPassword(key, meta.check);
-  if (!ok) throw new Error("Wrong password");
-  return { key, meta };
-}
-
-async function loadEntries() {
-  const files = await ghListVaultFiles(VAULT_PATHS.entries);
-  const entries = [];
-  for (const name of files) {
-    try {
-      const raw = await ghGetFileBG(VAULT_PATHS.entries + name);
-      const plain = await decryptToString(APP.key, raw);
-      const obj = JSON.parse(plain);
-      obj.id = name.replace(/\.json$/, "");
-      entries.push(obj);
-    } catch (e) {
-      console.warn("skipping unreadable entry", name, e);
+async function unlockAttempt() {
+  if (APP.gate.busy) return;
+  if (!APP.unlocked) {
+    const cfg = getGithubConfig();
+    if (!cfg || !cfg.token) {
+      el("connectBox").open = true;
+      el("lockMsg").textContent = "Connect GitHub first (below).";
+      Moods.setMood("curious");
+      return;
     }
   }
-  entries.sort((a, b) => (b.meta.updated || "").localeCompare(a.meta.updated || ""));
-  APP.entries = entries;
+  const pass = APP.unlocked ? "" : Vault.normalizeWaifu(el("gatePass").value);
+  if (!pass) { gateWrong(""); return; }
+  APP.gate.busy = true;
+  el("lockMsg").textContent = "";
+  try {
+    const { key, meta } = await Vault.unlock(pass);
+    APP.gate.stage = 3;
+    Moods.setMood("gloat");
+    setTimeout(() => afterUnlock(key, meta), 550);
+  } catch (err) {
+    gateWrong(err.message === "Wrong password" ? "" : err.message);
+  } finally {
+    APP.gate.busy = false;
+  }
 }
 
-function visibleEntries() {
-  const f = APP.filter;
-  const q = f.search.trim().toLowerCase();
-  return APP.entries.filter(e => {
-    if (f.tag && !(e.meta.tags || []).includes(f.tag)) return false;
-    if (!q) return true;
-    return (
-      (e.meta.title || "").toLowerCase().includes(q) ||
-      (e.text || "").toLowerCase().includes(q) ||
-      (e.meta.tags || []).some(t => t.toLowerCase().includes(q))
-    );
-  });
+function resetGate() {
+  el("gatePass").value = "";
+  el("lockMsg").textContent = "";
+  APP.gate.stage = 0;
+  APP.gate.wrongCount = 0;
+  APP.gate.busy = false;
+  clearTimeout(APP.gate.autoTimer);
+  Moods.setMood("idle", true);
+}
+
+async function afterUnlock(key, meta) {
+  APP.key = key;
+  APP.meta = meta;
+  APP.unlocked = true;
+  showScreen("app");
+  document.body.classList.add("unlocked");
+  el("loadingMsg").textContent = "Decrypting entries...";
+  try {
+    APP.entries = await Vault.listEntries();
+    renderGrid();
+    renderTags();
+    resetIdleTimer();
+  } catch (err) {
+    toast("Failed to load entries: " + err.message, "err");
+    el("loadingMsg").textContent = "";
+  }
+}
+
+async function lockVault() {
+  APP.key = null;
+  APP.unlocked = false;
+  APP.entries = [];
+  APP.meta = null;
+  document.body.classList.remove("unlocked");
+  showScreen("gate");
+  resetGate();
+}
+
+function resetIdleTimer() {
+  clearTimeout(APP.autoLockTimer);
+  if (APP.unlocked) {
+    APP.autoLockTimer = setTimeout(lockVault, IDLE_LOCK_MS);
+  }
 }
 
 function renderTags() {
@@ -138,6 +178,20 @@ function renderTags() {
       renderTags();
       renderGrid();
     };
+  });
+}
+
+function visibleEntries() {
+  const f = APP.filter;
+  const q = f.search.trim().toLowerCase();
+  return APP.entries.filter(e => {
+    if (f.tag && !(e.meta.tags || []).includes(f.tag)) return false;
+    if (!q) return true;
+    return (
+      (e.meta.title || "").toLowerCase().includes(q) ||
+      (e.text || "").toLowerCase().includes(q) ||
+      (e.meta.tags || []).some(t => t.toLowerCase().includes(q))
+    );
   });
 }
 
@@ -167,8 +221,7 @@ function renderGrid() {
   grid.querySelectorAll('[data-act="del"]').forEach(b => {
     b.onclick = ev => {
       ev.stopPropagation();
-      const id = b.closest(".card").dataset.id;
-      deleteEntry(id);
+      deleteEntry(b.closest(".card").dataset.id);
     };
   });
 }
@@ -178,12 +231,10 @@ async function deleteEntry(id) {
   if (!e) return;
   if (!confirm(`Delete "${e.meta.title || "Untitled"}"? This removes it from GitHub too.`)) return;
   try {
-    await ghDeleteFile(entryPath(e), "delete entry");
+    await Vault.removeFile(Vault.entryPath(e), "vault update");
     APP.entries = APP.entries.filter(x => x.id !== id);
-    if (e.meta.images) {
-      for (const img of e.meta.images) {
-        await ghDeleteFile(imagePath(img.id), "delete image");
-      }
+    for (const img of e.meta.images || []) {
+      try { await Vault.removeFile(Vault.imagePath(img.id), "vault update"); } catch (err) {}
     }
     renderGrid();
     renderTags();
@@ -211,7 +262,6 @@ async function saveEntry() {
   const id = el("editor").dataset.id || uid();
   const existing = APP.entries.find(x => x.id === id);
   const title = el("edTitle").value.trim();
-  const text = el("edText").value;
   const tags = el("edTags").value.split(",").map(s => s.trim()).filter(Boolean);
   const now = new Date().toISOString();
   const entry = {
@@ -223,14 +273,13 @@ async function saveEntry() {
       updated: now,
       images: existing ? existing.meta.images || [] : []
     },
-    text
+    text: el("edText").value
   };
-  const encrypted = await encryptString(APP.key, JSON.stringify(entry));
-  const path = entryPath(entry);
   try {
-    await ghPutFileBG(path, encrypted, "update entry");
-    if (existing && entryPath(existing) !== path) {
-      await ghDeleteFile(entryPath(existing), "rename entry");
+    const newPath = Vault.entryPath(entry);
+    await Vault.saveEncryptedPath(newPath, entry);
+    if (existing && Vault.entryPath(existing) !== newPath) {
+      await Vault.removeFile(Vault.entryPath(existing), "vault update");
     }
     const i = APP.entries.findIndex(x => x.id === id);
     if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
@@ -242,7 +291,7 @@ async function saveEntry() {
   } catch (err) {
     if (err.status === 409) {
       toast("Conflict: file changed remotely. Reloading entries...", "err");
-      await loadEntries();
+      APP.entries = await Vault.listEntries();
       renderGrid();
     } else {
       toast("Save failed: " + err.message, "err");
@@ -254,7 +303,7 @@ function togglePreview() {
   const pane = el("previewPane");
   const ta = el("edText");
   if (pane.hidden) {
-    pane.innerHTML = renderMarkdown(ta.value);
+    pane.innerHTML = MD.render(ta.value);
     ta.hidden = true;
     pane.hidden = false;
   } else {
@@ -263,119 +312,51 @@ function togglePreview() {
   }
 }
 
-function renderMarkdown(md) {
-  const lines = md.split("\n");
-  const out = [];
-  let inList = false;
-  for (const line of lines) {
-    let m;
-    if ((m = line.match(/^# (.*)$/))) { closeList(); out.push(`<h1>${inline(m[1])}</h1>`); }
-    else if ((m = line.match(/^## (.*)$/))) { closeList(); out.push(`<h2>${inline(m[1])}</h2>`); }
-    else if ((m = line.match(/^### (.*)$/))) { closeList(); out.push(`<h3>${inline(m[1])}</h3>`); }
-    else if ((m = line.match(/^- (.*)$/))) { if (!inList) { out.push("<ul>"); inList = true; } out.push(`<li>${inline(m[1])}</li>`); }
-    else if (line.trim() === "") { closeList(); }
-    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
-  }
-  closeList();
-  return out.join("");
-
-  function closeList() { if (inList) { out.push("</ul>"); inList = false; } }
-
-  function inline(s) {
-    return escapeHtml(s)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      .replace(/`(.+?)`/g, "<code>$1</code>")
-      .replace(/\[(.+?)\]\((https?:\/\/.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  }
-}
-
 async function handleImages(files) {
   for (const f of files) {
     if (!f.type.startsWith("image/")) continue;
-    const buf = await f.arrayBuffer();
-    const encPayload = await encryptBytes(APP.key, buf);
-    const imageId = uid() + "-" + slugify(f.name.replace(/\.[^.]+$/, ""));
     try {
-      await ghPutBinary(imagePath(imageId), new TextEncoder().encode(encPayload), "add image");
+      const buf = await f.arrayBuffer();
+      const encPayload = await encryptBytes(APP.key, buf);
+      const imageId = uid() + "-" + slugify(f.name.replace(/\.[^.]+$/, ""));
+      await Vault.putImage(imageId, encPayload);
+      el("edText").value += `\n![${f.name}](image:${imageId})\n`;
       toast("Image encrypted & uploaded: " + f.name, "ok");
-      const md = `\n![${f.name}](image:${imageId})\n`;
-      const ta = el("edText");
-      ta.value += md;
     } catch (err) {
       toast("Image upload failed: " + err.message, "err");
     }
   }
 }
 
-async function lockVault() {
-  APP.key = null;
-  APP.unlocked = false;
-  APP.entries = [];
-  APP.meta = null;
-  showScreen("lock");
-  el("lockPass").value = "";
-  el("lockMsg").textContent = "";
-  document.body.classList.remove("unlocked");
-}
-
-function resetIdleTimer() {
-  clearTimeout(APP.autoLockTimer);
-  if (APP.unlocked) {
-    APP.autoLockTimer = setTimeout(lockVault, IDLE_LOCK_MS);
-  }
-}
-
-function showScreen(name) {
-  el("setupScreen").hidden = name !== "setup";
-  el("lockScreen").hidden = name !== "lock";
-  el("appScreen").hidden = name !== "app";
-}
-
-async function afterUnlock(key, meta) {
-  APP.key = key;
-  APP.meta = meta;
-  APP.unlocked = true;
-  showScreen("app");
-  document.body.classList.add("unlocked");
-  el("loadingMsg").textContent = "Decrypting entries...";
+async function doConnect() {
+  const owner = el("lockOwner").value.trim();
+  const repo = el("lockRepo").value.trim();
+  const token = el("lockToken").value.trim();
+  if (!owner || !repo || !token) { el("lockMsg").textContent = "Fill all fields."; return; }
   try {
-    await loadEntries();
-    renderGrid();
-    renderTags();
-    resetIdleTimer();
-  } catch (err) {
-    toast("Failed to load entries: " + err.message, "err");
-  }
-}
-
-async function tryUnlock() {
-  const pass = el("lockPass").value;
-  if (!pass) return;
-  const btn = el("lockBtn");
-  btn.disabled = true;
-  btn.textContent = "Unlocking...";
-  try {
-    const { key } = await unlockVault(pass);
-    await afterUnlock(key, APP.meta);
+    await ghVerifyToken({ owner, repo, token });
   } catch (err) {
     el("lockMsg").textContent = err.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Unlock";
+    return;
   }
+  setGithubConfig({ owner, repo, branch: "main", token });
+  Vault.invalidateCache();
+  el("connectBox").open = false;
+  el("lockMsg").textContent = "";
+  toast("GitHub connected. Now answer her.", "ok");
+  refreshConnectPrefill();
 }
 
 async function doCreateVault() {
-  const p1 = el("setupPass").value;
-  const p2 = el("setupPass2").value;
+  const p1 = Vault.normalizeWaifu(el("setupWaifu").value);
+  const p2 = Vault.normalizeWaifu(el("setupWaifu2").value);
   const owner = el("setupOwner").value.trim();
   const repo = el("setupRepo").value.trim();
   const token = el("setupToken").value.trim();
   const msg = el("setupMsg");
-  if (!p1 || p1.length < 8) { msg.textContent = "Password must be at least 8 characters."; return; }
-  if (p1 !== p2) { msg.textContent = "Passwords do not match."; return; }
-  if (!owner || !repo || !token) { msg.textContent = "Fill in all fields."; return; }
+  if (!p1 || p1.length < 8) { msg.textContent = "Give her at least 8 characters."; return; }
+  if (p1 !== p2) { msg.textContent = "The two answers do not match."; return; }
+  if (!owner || !repo || !token) { msg.textContent = "Fill GitHub fields too."; return; }
   msg.textContent = "Verifying repo access...";
   setGithubConfig({ owner, repo, branch: "main", token });
   try {
@@ -384,14 +365,10 @@ async function doCreateVault() {
     msg.textContent = err.message;
     return;
   }
+  Vault.invalidateCache();
   msg.textContent = "Creating encrypted vault...";
   try {
-    const existing = await loadMeta();
-    if (existing) {
-      msg.textContent = "Vault already exists here. Use Unlock instead.";
-      return;
-    }
-    const { key, meta } = await createVault(p1);
+    const { key, meta } = await Vault.init(p1);
     toast("Vault created", "ok");
     await afterUnlock(key, meta);
   } catch (err) {
@@ -399,21 +376,10 @@ async function doCreateVault() {
   }
 }
 
-async function doUnlock() {
-  const owner = el("lockOwner").value.trim();
-  const repo = el("lockRepo").value.trim();
-  const token = el("lockToken").value.trim();
-  const pass = el("lockPass").value;
-  const msg = el("lockMsg");
-  if (!owner || !repo || !token || !pass) { msg.textContent = "Fill in all fields."; return; }
-  msg.textContent = "";
-  setGithubConfig({ owner, repo, branch: "main", token });
-  try {
-    const { key, meta } = await unlockVault(pass);
-    await afterUnlock(key, meta);
-  } catch (err) {
-    msg.textContent = err.message;
-  }
+function refreshConnectPrefill() {
+  const cfg = getGithubConfig() || {};
+  el("lockOwner").value = cfg.owner || "";
+  el("lockRepo").value = cfg.repo || "";
 }
 
 function refreshSettingsInputs() {
@@ -439,16 +405,22 @@ async function saveSettings() {
     return;
   }
   setGithubConfig(cfg);
+  Vault.invalidateCache();
   toast("Settings saved", "ok");
   modalClose("settingsModal");
 }
 
 function wire() {
-  el("lockBtn").onclick = doUnlock;
+  Moods.mount(el("avatarHost"));
+  refreshConnectPrefill();
+
+  el("gatePass").addEventListener("input", updateGateReactions);
+  el("gatePass").addEventListener("keydown", e => { if (e.key === "Enter") unlockAttempt(); });
+  el("connectBtn").onclick = doConnect;
   el("goSetup").onclick = e => { e.preventDefault(); showScreen("setup"); };
-  el("lockPass").addEventListener("keydown", e => { if (e.key === "Enter") doUnlock(); });
+  el("goLock").onclick = e => { e.preventDefault(); showScreen("gate"); resetGate(); };
   el("createBtn").onclick = doCreateVault;
-  el("setupPass2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
+  el("setupWaifu2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
 
   el("newEntryBtn").onclick = () => openEditor(null);
   el("saveEntryBtn").onclick = saveEntry;
@@ -468,13 +440,15 @@ function wire() {
     document.body.classList.toggle("dark");
     localStorage.setItem("ediary_theme", document.body.classList.contains("dark") ? "dark" : "light");
   };
+
   ["click", "keydown"].forEach(ev => document.addEventListener(ev, resetIdleTimer));
 
   const theme = localStorage.getItem("ediary_theme");
   if (theme === "dark") document.body.classList.add("dark");
-  if (theme === "light") document.body.classList.remove("dark");
+  else if (theme === "light") document.body.classList.remove("dark");
 
-  showScreen("lock");
+  showScreen("gate");
+  resetGate();
 }
 
 document.addEventListener("DOMContentLoaded", wire);
