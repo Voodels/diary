@@ -120,14 +120,17 @@ body:not(.dark) .ic-moon { display: none; }
 .gate {
   position: relative;
   max-width: 380px;
-  margin: 7vh auto;
-  min-height: 80vh;
+  margin: 0 auto;
+  min-height: 96vh;
+  justify-content: center;
+  padding-bottom: 6vh;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 0 20px;
+  gap: 10px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 .lamp {
@@ -175,7 +178,7 @@ body:not(.dark) .avatar { box-shadow: 0 0 0 9px var(--line), 0 24px 60px rgba(90
 }
 .avatar.shake { animation: shake 0.55s ease; }
 
-.bubble-wrap { min-height: 40px; position: relative; z-index: 1; }
+.bubble-wrap { min-height: 36px; position: relative; z-index: 1; margin-bottom: 2px; }
 .bubble {
   display: inline-block;
   background: var(--card);
@@ -184,8 +187,8 @@ body:not(.dark) .avatar { box-shadow: 0 0 0 9px var(--line), 0 24px 60px rgba(90
   font-family: "Fraunces", Georgia, serif;
   font-style: italic;
   font-weight: 600;
-  font-size: 17px;
-  padding: 8px 20px;
+  font-size: 18px;
+  padding: 9px 22px;
   border-radius: 20px 20px 20px 5px;
   transform: rotate(-1.5deg);
   animation: pop 0.3s ease;
@@ -203,7 +206,7 @@ body:not(.dark) .avatar { box-shadow: 0 0 0 9px var(--line), 0 24px 60px rgba(90
   font-size: 33px;
   line-height: 1.2;
   letter-spacing: 0.01em;
-  margin: 8px 0 0;
+  margin: 2px 0 0;
 }
 
 #gatePass {
@@ -232,7 +235,8 @@ body:not(.dark) .avatar { box-shadow: 0 0 0 9px var(--line), 0 24px 60px rgba(90
   opacity: 0.75;
   font-size: 12.5px;
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  margin-top: 26px;
+  margin-top: 16px;
+  max-width: 300px;
 }
 
 .heart {
