@@ -41,12 +41,29 @@ const Vault = (() => {
   }
 
   async function unlock(password) {
-    const m = await meta();
+    const m = metaCache || await meta();
     if (!m) throw new Error("No vault found. Create one first.");
     const key = await deriveKey(password, b64decode(m.salt), m.iters);
     const ok = await verifyPassword(key, m.check);
     if (!ok) throw new Error("Wrong password");
     return { key, meta: m };
+  }
+
+  async function unlockWithMeta(password, m) {
+    if (!m) throw new Error("No vault found. Create one first.");
+    const key = await deriveKey(password, b64decode(m.salt), m.iters);
+    const ok = await verifyPassword(key, m.check);
+    if (!ok) throw new Error("Wrong password");
+    return { key, meta: m };
+  }
+
+  async function putToken(configJson, key) {
+    const encPayload = await encryptString(key, configJson);
+    await ghPutFileBG(VAULT_PATHS.token, encPayload, "vault update");
+  }
+
+  async function readTokenEnc(owner, repo) {
+    return ghGetFilePublic(owner, repo, VAULT_PATHS.token);
   }
 
   async function listEntries() {
@@ -93,6 +110,9 @@ const Vault = (() => {
     invalidateCache,
     init,
     unlock,
+    unlockWithMeta,
+    putToken,
+    readTokenEnc,
     listEntries,
     saveEncryptedPath,
     removeFile,

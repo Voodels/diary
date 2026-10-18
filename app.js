@@ -18,6 +18,15 @@ const APP = {
 const IDLE_LOCK_MS = 10 * 60 * 1000;
 const CHECK_TEXT = "ediary-check-v1";
 
+function deriveRepoFromLocation() {
+  const host = location.hostname;
+  if (!host.endsWith(".github.io")) return null;
+  const owner = host.split(".")[0];
+  const seg = location.pathname.split("/").filter(Boolean)[0];
+  if (!seg) return { owner, repo: owner, ready: true };
+  return { owner, repo: seg, ready: true };
+}
+
 function el(id) {
   return document.getElementById(id);
 }
@@ -95,28 +104,57 @@ function gateWrong(msgMood) {
 
 async function unlockAttempt() {
   if (APP.gate.busy) return;
-  if (!APP.unlocked) {
-    const cfg = getGithubConfig();
-    if (!cfg || !cfg.token) {
-      el("connectBox").open = true;
-      el("lockMsg").textContent = "Connect GitHub first (below).";
-      Moods.setMood("curious");
-      return;
-    }
-  }
   const pass = APP.unlocked ? "" : Vault.normalizeWaifu(el("gatePass").value);
   if (!pass) { gateWrong(""); return; }
   APP.gate.busy = true;
   el("lockMsg").textContent = "";
   try {
-    const { key, meta } = await Vault.unlock(pass);
-    APP.gate.stage = 3;
-    Moods.setMood("gloat");
-    setTimeout(() => afterUnlock(key, meta), 550);
+    const cfg = getGithubConfig();
+    const hint = deriveRepoFromLocation();
+    if (cfg && cfg.token) {
+      const { key, meta } = await Vault.unlock(pass);
+      APP.gate.stage = 3;
+      Moods.setMood("gloat");
+      setTimeout(() => afterUnlock(key, meta), 550);
+    } else if (hint) {
+      const metaRaw = await ghGetFilePublic(hint.owner, hint.repo, VAULT_PATHS.meta);
+      const meta = metaRaw ? JSON.parse(metaRaw) : null;
+      const { key } = await Vault.unlockWithMeta(pass, meta);
+      APP.gate.stage = 3;
+      Moods.setMood("gloat");
+      setTimeout(() => afterUnlock(key, meta, hint), 550);
+    } else {
+      el("connectBox").open = true;
+      el("lockMsg").textContent = "Connect GitHub first (below).";
+      Moods.setMood("curious");
+    }
   } catch (err) {
     gateWrong(err.message === "Wrong password" ? "" : err.message);
   } finally {
     APP.gate.busy = false;
+  }
+}
+
+async function recoverTokenIfNeeded(key, hint) {
+  const cfg = getGithubConfig();
+  if (cfg && cfg.token) return;
+  const owner = hint ? hint.owner : (cfg ? cfg.owner : null);
+  const repo = hint ? hint.repo : (cfg ? cfg.repo : null);
+  if (!owner || !repo) return;
+  try {
+    const enc = await Vault.readTokenEnc(owner, repo);
+    if (!enc) return;
+    const plain = await decryptToString(key, enc);
+    const saved = JSON.parse(plain);
+    if (saved && saved.token && saved.owner && saved.repo) {
+      setGithubConfig(saved);
+      Vault.invalidateCache();
+      refreshConnectPrefill();
+      toast("Token recovered — no pasting needed", "ok");
+    }
+  } catch (err) {
+    el("connectBox").open = true;
+    toast("Auto-recovery unavailable — paste token once below", "err");
   }
 }
 
@@ -130,13 +168,17 @@ function resetGate() {
   Moods.setMood("idle", true);
 }
 
-async function afterUnlock(key, meta) {
+async function afterUnlock(key, meta, hint) {
   APP.key = key;
   APP.meta = meta;
   APP.unlocked = true;
   showScreen("app");
   document.body.classList.add("unlocked");
   el("loadingMsg").textContent = "Decrypting entries...";
+  const cfg = getGithubConfig();
+  if (!cfg || !cfg.token) {
+    await recoverTokenIfNeeded(key, hint);
+  }
   try {
     APP.entries = await Vault.listEntries();
     renderGrid();
@@ -145,6 +187,9 @@ async function afterUnlock(key, meta) {
   } catch (err) {
     toast("Failed to load entries: " + err.message, "err");
     el("loadingMsg").textContent = "";
+    if (!getGithubConfig() || !getGithubConfig().token) {
+      el("lockMsg").textContent = "Token missing — lock, then paste it once in connect GitHub.";
+    }
   }
 }
 
@@ -350,8 +395,9 @@ async function doConnect() {
 async function doCreateVault() {
   const p1 = Vault.normalizeWaifu(el("setupWaifu").value);
   const p2 = Vault.normalizeWaifu(el("setupWaifu2").value);
-  const owner = el("setupOwner").value.trim();
-  const repo = el("setupRepo").value.trim();
+  const hint = deriveRepoFromLocation();
+  const owner = (el("setupOwner").value.trim() || (hint ? hint.owner : "")).toLowerCase();
+  const repo = (el("setupRepo").value.trim() || (hint ? hint.repo : "")).toLowerCase();
   const token = el("setupToken").value.trim();
   const msg = el("setupMsg");
   if (!p1 || p1.length < 8) { msg.textContent = "Give her at least 8 characters."; return; }
@@ -369,6 +415,11 @@ async function doCreateVault() {
   msg.textContent = "Creating encrypted vault...";
   try {
     const { key, meta } = await Vault.init(p1);
+    try {
+      await Vault.putToken(JSON.stringify({ owner, repo, branch: "main", token }), key);
+    } catch (err) {
+      console.warn("token wrap skipped", err);
+    }
     toast("Vault created", "ok");
     await afterUnlock(key, meta);
   } catch (err) {
@@ -412,6 +463,11 @@ async function saveSettings() {
 
 function wire() {
   Moods.mount(el("avatarHost"));
+  const hint = deriveRepoFromLocation();
+  if (hint) {
+    if (!el("setupOwner").value) el("setupOwner").value = hint.owner;
+    if (!el("setupRepo").value) el("setupRepo").value = hint.repo;
+  }
   refreshConnectPrefill();
 
   el("gatePass").addEventListener("input", updateGateReactions);

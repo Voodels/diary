@@ -4,8 +4,23 @@ const VAULT_PATHS = {
   meta: "vault/meta.json",
   entries: "vault/entries/",
   data: "vault/data/",
-  images: "vault/images/"
+  images: "vault/images/",
+  token: "vault/token.enc"
 };
+
+async function ghGetFilePublic(owner, repo, path) {
+  const res = await fetch(GH_API + "/repos/" + owner + "/" + repo + "/contents/" + path, {
+    headers: { "Accept": "application/vnd.github+json" }
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("GitHub fetch failed " + res.status);
+  const j = await res.json();
+  const b64 = j.content.replace(/\n/g, "");
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
 
 let ghCfg = null;
 
