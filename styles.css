@@ -816,6 +816,22 @@ body:not(.dark) .modal { background: rgba(42, 36, 48, 0.35); }
 .modal-box.wide { max-width: 840px; }
 .modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .modal-head strong, .modal-head .btn { font-family: "Fraunces", Georgia, serif; }
+.modal-box textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  font: 12px/1.55 ui-monospace, Consolas, monospace;
+  padding: 8px 10px;
+  resize: vertical;
+  margin: 6px 0 10px;
+}
+.diag-head { font-size: 12px; color: var(--muted); margin-top: 14px; }
+.diag-btns { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 4px; }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.side-loading.clickable { cursor: pointer; color: var(--rose-strong); }
+.side-loading.err { color: var(--danger); }
 
 /* ── slash menu ─────────────────────────────────── */
 

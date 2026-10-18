@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body class="dark">
 
@@ -225,15 +225,27 @@
   </div>
 </div>
 
+<div id="conflictModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head"><strong>Sync conflict</strong><span class="spacer"></span><button id="conflictCloseBtn" class="icon-btn">✕</button></div>
+    <p class="hint">Another device changed this page on GitHub while you were writing. Your unsaved version is kept safe below.</p>
+    <div id="conflictInfo" class="hint"></div>
+    <div class="modal-btns">
+      <button id="conflictDiscardBtn" class="btn ghost">Keep their version</button>
+      <button id="conflictRestoreBtn" class="btn primary">Restore mine</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
-<script src="util.js?v=6"></script>
-<script src="logging.js?v=6"></script>
-<script src="crypto.js?v=6"></script>
-<script src="github.js?v=6"></script>
-<script src="markdown.js?v=6"></script>
-<script src="avatar.js?v=6"></script>
-<script src="vault.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="util.js?v=7"></script>
+<script src="logging.js?v=7"></script>
+<script src="crypto.js?v=7"></script>
+<script src="github.js?v=7"></script>
+<script src="markdown.js?v=7"></script>
+<script src="avatar.js?v=7"></script>
+<script src="vault.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@ const APP = {
   unlocked: false,
   entries: [],
   meta: null,
+  loadedOK: false,
   filter: { search: "", tag: null, sort: "new" },
   autoLockTimer: null,
   gate: {
@@ -225,26 +226,48 @@ async function afterUnlock(key, meta, hint) {
   APP.key = key;
   APP.meta = meta;
   APP.unlocked = true;
+  APP.loadedOK = false;
   showScreen("app");
   document.body.classList.add("unlocked");
   closeEditor();
   el("loadingMsg").textContent = "Decrypting entries...";
+  el("loadingMsg").classList.remove("err", "clickable");
+  el("loadingMsg").onclick = null;
   const cfg = getGithubConfig();
   if (!cfg || !cfg.token) {
     await recoverTokenIfNeeded(key, hint);
   }
+  await tryLoadEntries();
+}
+
+async function tryLoadEntries() {
+  el("loadingMsg").textContent = APP.loadedOK ? "Refreshing entries..." : "Decrypting entries...";
   try {
     APP.entries = await Vault.listEntries();
+    APP.loadedOK = true;
     renderAll();
     el("loadingMsg").textContent = "";
+    el("loadingMsg").classList.remove("err", "clickable");
+    el("loadingMsg").onclick = null;
     resetIdleTimer();
   } catch (err) {
+    APP.loadedOK = false;
+    Log.push({ msg: "entries load failed: " + err.message });
+    el("loadingMsg").textContent = "⚠ Vault didn't load — click here to retry";
+    el("loadingMsg").classList.add("err", "clickable");
+    el("loadingMsg").onclick = () => { tryLoadEntries(); };
     toast("Failed to load entries: " + err.message, "err");
-    el("loadingMsg").textContent = "";
     if (!getGithubConfig() || !getGithubConfig().token) {
       el("loadingMsg").textContent = "Token expired or missing — opens Settings inside the app.";
     }
   }
+}
+
+function requireLoaded(op) {
+  if (APP.loadedOK) return true;
+  toast("Vault not loaded yet — use the retry note in the sidebar", "err");
+  Log.push({ msg: "blocked " + op + ": vault not loaded" });
+  return false;
 }
 
 async function lockVault() {
@@ -368,6 +391,7 @@ function renderList() {
 }
 
 async function deleteEntry(id) {
+  if (!requireLoaded("delete")) return;
   const e = APP.entries.find(x => x.id === id);
   if (!e) return;
   if (!confirm(`Delete "${e.meta.title || "Untitled"}"? This removes it from GitHub too.`)) return;
@@ -375,12 +399,14 @@ async function deleteEntry(id) {
     await Vault.removeFile(Vault.entryPath(e), "vault update");
     APP.entries = APP.entries.filter(x => x.id !== id);
     for (const img of e.meta.images || []) {
-      try { await Vault.removeFile(Vault.imagePath(img.id), "vault update"); } catch (err) {}
+      try { await Vault.removeFile(Vault.imagePath(img.id), "vault update"); } catch (err) { Log.push({ msg: "image delete failed " + img.id + ": " + err.message }); }
     }
+    clearDraft(id);
     if (el("editor").dataset.id === id) closeEditor();
     renderAll();
     toast("Entry deleted", "ok");
   } catch (err) {
+    Log.push({ msg: "delete failed: " + err.message });
     toast("Delete failed: " + err.message, "err");
   }
 }
@@ -407,6 +433,7 @@ function commitTagInput() {
   for (const p of parts) if (!ED_TAGS.includes(p)) ED_TAGS.push(p);
   el("edTags").value = "";
   if (parts.length) renderEdTags();
+  saveDraftSoon();
 }
 
 function openEditor(id) {
@@ -420,8 +447,7 @@ function openEditor(id) {
   el("edText").value = e ? e.text || "" : "";
   el("edDate").textContent = fmtShort(e ? (e.meta.created || e.meta.updated) : new Date().toISOString());
   el("edEdited").textContent = e ? "edited " + fmtDateTime(e.meta.updated || e.meta.created) : "unsaved";
-  el("previewPane").hidden = !isSplit();
-  el("edText").hidden = false;
+  restoreDraftIfAny(id, e);
   hideSlashMenu();
   updateCount();
   if (isSplit()) renderPreviewLive();
@@ -431,6 +457,25 @@ function openEditor(id) {
   el("edTitle").focus();
 }
 
+function restoreDraftIfAny(id, e) {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (err) { d = null; }
+  if (!d) return;
+  const mine = el("edText").value;
+  if (d.id !== el("editor").dataset.id) return;
+  if (d.id === "" && !e && !d.text.trim() && !d.title) return;
+  if (e && d.text === mine) { localStorage.removeItem(DRAFT_KEY); return; }
+  if (confirm(`Unsaved draft from ${new Date(d.at).toLocaleString()} found for this page. Restore it?`)) {
+    el("edTitle").value = d.title || el("edTitle").value;
+    ED_TAGS = [...(d.tags || ED_TAGS)];
+    renderEdTags();
+    el("edText").value = d.text;
+    el("edEdited").textContent = "restored draft " + new Date(d.at).toLocaleTimeString();
+  } else {
+    localStorage.removeItem(DRAFT_KEY);
+  }
+}
+
 function closeEditor() {
   el("editor").classList.remove("open");
   renderList();
@@ -438,24 +483,28 @@ function closeEditor() {
 
 async function saveEntry() {
   if (!APP.key) { toast("Vault is locked", "err"); return; }
-  const id = el("editor").dataset.id || uid();
-  const existing = APP.entries.find(x => x.id === id);
-  const title = el("edTitle").value.trim();
-  commitTagInput();
-  const tags = [...ED_TAGS];
-  const now = new Date().toISOString();
-  const entry = {
-    id,
-    meta: {
-      title: title || "Untitled",
-      tags,
-      created: existing ? existing.meta.created : now,
-      updated: now,
-      images: existing ? existing.meta.images || [] : []
-    },
-    text: el("edText").value
-  };
+  if (!requireLoaded("save")) return;
+  const btn = el("saveEntryBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
   try {
+    const id = el("editor").dataset.id || uid();
+    const existing = APP.entries.find(x => x.id === id);
+    const title = el("edTitle").value.trim();
+    commitTagInput();
+    const tags = [...ED_TAGS];
+    const now = new Date().toISOString();
+    const entry = {
+      id,
+      meta: {
+        title: title || "Untitled",
+        tags,
+        created: existing ? existing.meta.created : now,
+        updated: now,
+        images: existing ? existing.meta.images || [] : []
+      },
+      text: el("edText").value
+    };
     const newPath = Vault.entryPath(entry);
     await Vault.saveEncryptedPath(newPath, entry);
     if (existing && Vault.entryPath(existing) !== newPath) {
@@ -463,18 +512,101 @@ async function saveEntry() {
     }
     const i = APP.entries.findIndex(x => x.id === id);
     if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
+    clearDraft(id);
     closeEditor();
     renderAll();
     toast("Saved & synced to GitHub", "ok");
   } catch (err) {
+    Log.push({ msg: "save failed" + (err.status ? " (" + err.status + ")" : "") + ": " + err.message });
     if (err.status === 409) {
-      toast("Conflict: file changed remotely. Reloading entries...", "err");
-      APP.entries = await Vault.listEntries();
-      renderAll();
+      await handleSaveConflict(err);
     } else {
       toast("Save failed: " + err.message, "err");
     }
+    renderAll();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Done";
   }
+}
+
+function stashDraft(id) {
+  try {
+    localStorage.setItem("ediary_conflict_" + id, JSON.stringify({
+      title: el("edTitle").value.trim(),
+      tags: [...ED_TAGS],
+      text: el("edText").value,
+      at: new Date().toISOString()
+    }));
+  } catch (e) {}
+}
+
+function readStash(id) {
+  try { return JSON.parse(localStorage.getItem("ediary_conflict_" + id)); } catch (e) { return null; }
+}
+
+function dropStash(id) {
+  localStorage.removeItem("ediary_conflict_" + id);
+}
+
+async function handleSaveConflict(err) {
+  const id = el("editor").dataset.id;
+  if (!id) {
+    APP.entries = await safeRetryEntries();
+    toast("Conflict on a new page — changes kept in the editor", "err");
+    return;
+  }
+  stashDraft(id);
+  const mine = readStash(id);
+  const theirs = APP.entries.find(x => x.id === id);
+  el("conflictInfo").textContent =
+    "yours: " + new Date(mine.at).toLocaleString() + " (" + (mine.text || "").length + " chars)" +
+    "\ntheirs: " + new Date((theirs && theirs.meta.updated) || "").toLocaleString() + " (" + ((theirs && theirs.text) || "").length + " chars)";
+  APP.entries = await safeRetryEntries();
+  renderAll();
+  openConflictModal(id);
+}
+
+async function safeRetryEntries() {
+  try {
+    const fresh = await Vault.listEntries();
+    APP.loadedOK = true;
+    el("loadingMsg").textContent = "";
+    el("loadingMsg").classList.remove("err", "clickable");
+    return fresh;
+  } catch (err) {
+    Log.push({ msg: "reload after conflict failed: " + err.message });
+    toast("Reload after conflict failed: " + err.message, "err");
+    return APP.entries;
+  }
+}
+
+function openConflictModal(id) {
+  modalOpen("conflictModal");
+  el("conflictRestoreBtn").onclick = () => {
+    const stash = readStash(id);
+    modalClose("conflictModal");
+    dropStash(id);
+    if (stash) {
+      openEditor(id);
+      el("edTitle").value = stash.title;
+      ED_TAGS = [...(stash.tags || [])];
+      renderEdTags();
+      el("edText").value = stash.text;
+      el("edEdited").textContent = "restored conflicted draft " + new Date(stash.at).toLocaleTimeString();
+      afterEdit();
+      toast("My version restored in the editor — save again to sync", "ok");
+    }
+  };
+  el("conflictDiscardBtn").onclick = () => {
+    modalClose("conflictModal");
+    dropStash(id);
+    toast("Their version is in the list — my edit discarded", "ok");
+  };
+  el("conflictCloseBtn").onclick = () => {
+    modalClose("conflictModal");
+    toast("Draft kept in the sidebar list — restore later via conflict notice", "ok");
+  };
 }
 
 function togglePreview() {
@@ -541,6 +673,34 @@ function tbInsert(text) {
   ta.focus();
   ta.setSelectionRange(np, np);
   afterEdit();
+}
+
+const DRAFT_KEY = "ediary_draft";
+
+function clearDraft(id) {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    if (d && d.id === id) localStorage.removeItem(DRAFT_KEY);
+  } catch (e) {}
+}
+
+function saveDraftSoon() {
+  clearTimeout(saveDraftSoon.timer);
+  saveDraftSoon.timer = setTimeout(() => {
+    if (!el("editor").classList.contains("open") || !APP.key) return;
+    const text = el("edText").value;
+    const title = el("edTitle").value.trim();
+    if (!text.trim() && !title) { clearDraft(el("editor").dataset.id); return; }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        id: el("editor").dataset.id,
+        title,
+        tags: [...ED_TAGS],
+        text,
+        at: new Date().toISOString()
+      }));
+    } catch (e) {}
+  }, 4000);
 }
 
 const TABLE_TPL = "| column A | column B |\n| --- | --- |\n| | |";
@@ -676,6 +836,7 @@ async function resolveImages(pane) {
     } catch (err) {
       s.textContent = "image unavailable" + (err && err.message ? ": " + err.message : "");
       s.classList.add("err");
+      Log.push({ msg: "image render failed " + (id || "") + ": " + (err && err.message) });
     }
   }
 }
@@ -694,8 +855,13 @@ function renderPreviewLive() {
 }
 
 async function handleImages(files) {
-  for (const f of files) {
-    if (!f.type.startsWith("image/")) continue;
+  if (!requireLoaded("image upload")) return;
+  const list = files.filter(f => f.type.startsWith("image/"));
+  if (!list.length) return;
+  let n = 0;
+  for (const f of list) {
+    n++;
+    toast(`Encrypting image ${n}/${list.length} (${(f.size / 1024).toFixed(0)} KB)…`, "ok");
     try {
       const buf = await f.arrayBuffer();
       const encPayload = await encryptBytes(APP.key, buf);
@@ -703,8 +869,10 @@ async function handleImages(files) {
       const imageId = uid();
       await Vault.putImage(imageId, encPayload);
       el("edText").value += `\n![${name}](image:${imageId})\n`;
-      toast("Image encrypted & uploaded: " + name, "ok");
+      toast(`Image ${n}/${list.length} uploaded & encrypted: ${name}`, "ok");
+      saveDraftSoon();
     } catch (err) {
+      Log.push({ msg: "image upload failed (" + f.name + "): " + err.message });
       toast("Image upload failed: " + err.message, "err");
     }
   }
@@ -998,9 +1166,11 @@ function wire() {
     autoTodo();
     updateCount();
     slashDetection();
+    saveDraftSoon();
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => { if (!el("previewPane").hidden) renderPreviewLive(); }, 220);
   });
+  el("edTitle").addEventListener("input", saveDraftSoon);
   el("edText").addEventListener("click", slashDetection);
   el("edText").addEventListener("keydown", e => {
     if (SLASH.open && !e.ctrlKey && !e.metaKey) {
