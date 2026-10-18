@@ -43,7 +43,7 @@ function uid() {
 }
 
 function slugify(s) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "entry";
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "entry";
 }
 
 function toast(msg, kind) {
@@ -452,6 +452,14 @@ async function saveSettings() {
   }
   setGithubConfig(cfg);
   Vault.invalidateCache();
+  if (APP.key) {
+    try {
+      await Vault.putToken(JSON.stringify(cfg), APP.key);
+    } catch (err) {
+      toast("Saved on this device, but vault copy failed: " + err.message, "err");
+      return;
+    }
+  }
   toast("Settings saved", "ok");
   modalClose("settingsModal");
 }

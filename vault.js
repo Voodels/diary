@@ -6,7 +6,7 @@ const Vault = (() => {
   }
 
   function entryPath(e) {
-    return VAULT_PATHS.entries + e.id + "-" + slugify(e.title) + ".json";
+    return VAULT_PATHS.entries + e.id + "-" + slugify((e.meta && e.meta.title) || "untitled") + ".json";
   }
 
   function imagePath(imageId) {
