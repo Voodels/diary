@@ -31,6 +31,10 @@ function el(id) {
   return document.getElementById(id);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function fmtDateTime(iso) {
   const d = new Date(iso);
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -203,6 +207,8 @@ async function afterUnlock(key, meta, hint) {
     APP.entries = await Vault.listEntries();
     renderGrid();
     renderTags();
+    renderRecent();
+    el("loadingMsg").textContent = "";
     resetIdleTimer();
   } catch (err) {
     toast("Failed to load entries: " + err.message, "err");
@@ -235,7 +241,7 @@ function renderTags() {
   for (const e of APP.entries) for (const t of e.meta.tags || []) counts[t] = (counts[t] || 0) + 1;
   const tags = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   el("tagList").innerHTML =
-    `<div class="tag-item${APP.filter.tag === null ? " active" : ""}" data-tag="">All entries</div>` +
+    `<div class="tag-item${APP.filter.tag === null ? " active" : ""}" data-tag="">All entries <span class="count">${APP.entries.length}</span></div>` +
     tags.map(t => `<div class="tag-item${APP.filter.tag === t ? " active" : ""}" data-tag="${escapeHtml(t)}">${escapeHtml(t)} <span class="count">${counts[t]}</span></div>`).join("");
   el("tagList").querySelectorAll(".tag-item").forEach(d => {
     d.onclick = () => {
@@ -243,6 +249,17 @@ function renderTags() {
       renderTags();
       renderGrid();
     };
+  });
+}
+
+function renderRecent() {
+  const list = APP.entries.slice(0, 9);
+  const box = el("recentList");
+  box.innerHTML = list.length
+    ? list.map(e => `<div class="recent-item" data-id="${escapeHtml(e.id)}">${escapeHtml(e.meta.title || "Untitled")}</div>`).join("")
+    : `<div class="recent-item" style="cursor:default">nothing yet</div>`;
+  box.querySelectorAll(".recent-item[data-id]").forEach(d => {
+    d.onclick = () => openEditor(d.dataset.id);
   });
 }
 
@@ -303,6 +320,7 @@ async function deleteEntry(id) {
     }
     renderGrid();
     renderTags();
+    renderRecent();
     toast("Entry deleted", "ok");
   } catch (err) {
     toast("Delete failed: " + err.message, "err");
@@ -318,7 +336,11 @@ function openEditor(id) {
   el("edDate").textContent = e ? "Last edited " + fmtDateTime(e.meta.updated || e.meta.created) : "New entry";
   el("previewPane").hidden = true;
   el("edText").hidden = false;
+  hideSlashMenu();
+  updateCount();
   modalOpen("editor");
+  const sc = document.querySelector(".page-scroll");
+  if (sc) sc.scrollTop = 0;
   el("edTitle").focus();
 }
 
@@ -352,6 +374,7 @@ async function saveEntry() {
     modalClose("editor");
     renderGrid();
     renderTags();
+    renderRecent();
     toast("Saved & synced to GitHub", "ok");
   } catch (err) {
     if (err.status === 409) {
@@ -371,9 +394,44 @@ function togglePreview() {
     pane.innerHTML = MD.render(ta.value);
     ta.hidden = true;
     pane.hidden = false;
+    resolveImages(pane);
   } else {
     pane.hidden = true;
     ta.hidden = false;
+    ta.focus();
+  }
+}
+
+function updateCount() {
+  const v = el("edText").value;
+  const words = v.trim() ? v.trim().split(/\s+/).length : 0;
+  el("edCount").textContent = words === 1 ? "1 word" : words + " words";
+}
+
+function sniffMime(b) {
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return "image/png";
+  if (b.length > 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return "image/jpeg";
+  if (b.length > 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
+  if (b.length > 12 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
+  return "image/png";
+}
+
+async function resolveImages(pane) {
+  const slots = pane.querySelectorAll(".img-slot");
+  for (const s of slots) {
+    try {
+      const buf = await Vault.readEntryImage(s.dataset.imageId, APP.key);
+      const mime = sniffMime(new Uint8Array(buf));
+      const url = URL.createObjectURL(new Blob([buf], { type: mime }));
+      const img = document.createElement("img");
+      img.className = "entry-img";
+      img.src = url;
+      img.alt = s.dataset.name || "encrypted image";
+      s.replaceWith(img);
+    } catch (err) {
+      s.textContent = "image unavailable";
+      s.classList.add("err");
+    }
   }
 }
 
@@ -464,6 +522,125 @@ async function saveSettings() {
   modalClose("settingsModal");
 }
 
+const SLASH_ITEMS = [
+  { id: "h1", ic: "H1", label: "Heading 1", hint: "#", ins: "# " },
+  { id: "h2", ic: "H2", label: "Heading 2", hint: "##", ins: "## " },
+  { id: "bullet", ic: "•", label: "Bullet list", hint: "-", ins: "- " },
+  { id: "todo", ic: "[]", label: "To-do", hint: "- [ ]", ins: "- [ ] " },
+  { id: "quote", ic: ">", label: "Quote", hint: ">", ins: "> " },
+  { id: "num", ic: "1.", label: "Numbered list", hint: "1.", ins: "1. " },
+  { id: "div", ic: "—", label: "Divider", hint: "---", ins: "---\n" },
+  { id: "code", ic: "</>", label: "Code block", hint: "```", ins: "```\n\n```", caret: 4 },
+  { id: "img", ic: "img", label: "Image", hint: "file", ins: null }
+];
+
+const SLASH = { open: false, items: [], sel: 0, slashIdx: -1 };
+
+function caretCoordinates(ta, pos) {
+  const div = document.createElement("div");
+  const cs = getComputedStyle(ta);
+  const props = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "letterSpacing", "textTransform", "textIndent", "lineHeight", "paddingTop", "paddingLeft", "paddingRight", "paddingBottom", "borderTopWidth", "borderLeftWidth", "boxSizing", "wordWrap", "overflowWrap"];
+  for (const p of props) div.style[p] = cs[p];
+  div.style.position = "fixed";
+  div.style.visibility = "hidden";
+  div.style.whiteSpace = "pre-wrap";
+  div.style.overflow = "hidden";
+  div.style.width = ta.clientWidth + "px";
+  const r = ta.getBoundingClientRect();
+  div.style.top = r.top + "px";
+  div.style.left = r.left + "px";
+  div.textContent = ta.value.slice(0, pos);
+  const span = document.createElement("span");
+  span.textContent = ta.value.slice(pos, pos + 1) || ".";
+  div.appendChild(span);
+  document.body.appendChild(div);
+  const top = r.top + span.offsetTop - ta.scrollTop;
+  const left = r.left + span.offsetLeft;
+  const lineHeight = parseFloat(cs.lineHeight) || 22;
+  div.remove();
+  return { left, top, lineHeight };
+}
+
+function slashDetection() {
+  const ta = el("edText");
+  if (document.activeElement !== ta || ta.hidden) { hideSlashMenu(); return; }
+  const pos = ta.selectionStart;
+  const upto = ta.value.slice(0, pos);
+  const m = upto.match(/(^|\n)\/([^\/\n]{0,18})$/);
+  if (!m) { hideSlashMenu(); return; }
+  const q = m[2].toLowerCase();
+  const items = SLASH_ITEMS.filter(it => it.label.toLowerCase().includes(q));
+  if (!items.length) { hideSlashMenu(); return; }
+  SLASH.open = true;
+  SLASH.items = items;
+  SLASH.sel = 0;
+  SLASH.slashIdx = pos - m[2].length - 1;
+  renderSlashMenu();
+  positionSlashMenu();
+}
+
+function renderSlashMenu() {
+  const menu = el("slashMenu");
+  menu.innerHTML = SLASH.items.map((it, i) =>
+    `<div class="slash-item${i === SLASH.sel ? " selected" : ""}" data-i="${i}">
+      <span class="si-ic">${escapeHtml(it.ic)}</span><span>${escapeHtml(it.label)}</span><span class="si-hint">${escapeHtml(it.hint)}</span>
+    </div>`).join("");
+  menu.querySelectorAll(".slash-item").forEach(d => {
+    d.addEventListener("mousedown", ev => { ev.preventDefault(); pickSlashItem(+d.dataset.i); });
+  });
+}
+
+function positionSlashMenu() {
+  const menu = el("slashMenu");
+  const ta = el("edText");
+  const maxH = Math.min(SLASH.items.length * 47 + 12, 360);
+  let left, top;
+  try {
+    const c = caretCoordinates(ta, SLASH.slashIdx);
+    left = c.left;
+    top = c.top + c.lineHeight + 4;
+  } catch (err) {
+    const r = ta.getBoundingClientRect();
+    left = r.left + 12;
+    top = r.top + r.height - 20;
+  }
+  if (left + 276 > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 284);
+  if (top + maxH > window.innerHeight - 10) {
+    top = Math.max(10, top - maxH - 30);
+  }
+  menu.style.left = Math.round(left) + "px";
+  menu.style.top = Math.round(top) + "px";
+  menu.hidden = false;
+}
+
+function hideSlashMenu() {
+  SLASH.open = false;
+  SLASH.slashIdx = -1;
+  el("slashMenu").hidden = true;
+}
+
+function pickSlashItem(i) {
+  const it = SLASH.items[i];
+  if (!it) return;
+  const ta = el("edText");
+  const slashIdx = SLASH.slashIdx;
+  const end = ta.selectionStart;
+  hideSlashMenu();
+  const v = ta.value;
+  if (it.id === "img") {
+    ta.value = v.slice(0, slashIdx) + v.slice(end);
+    ta.selectionStart = ta.selectionEnd = slashIdx;
+    updateCount();
+    el("imageInput").click();
+    return;
+  }
+  ta.value = v.slice(0, slashIdx) + it.ins + v.slice(end);
+  const caret = slashIdx + (it.caret !== undefined ? it.caret : it.ins.length);
+  ta.selectionStart = ta.selectionEnd = caret;
+  ta.focus();
+  updateCount();
+}
+
 function wire() {
   Moods.mount(el("avatarHost"));
   const hint = deriveRepoFromLocation();
@@ -487,6 +664,26 @@ function wire() {
   el("closeSettingsBtn").onclick = () => modalClose("settingsModal");
   el("closeEditorBtn").onclick = () => modalClose("editor");
   el("searchBox").addEventListener("input", e => { APP.filter.search = e.target.value; renderGrid(); });
+  el("edText").addEventListener("input", () => { updateCount(); slashDetection(); });
+  el("edText").addEventListener("click", slashDetection);
+  el("edText").addEventListener("keydown", e => {
+    if (SLASH.open && !e.ctrlKey && !e.metaKey) {
+      if (e.key === "ArrowDown") { e.preventDefault(); SLASH.sel = (SLASH.sel + 1) % SLASH.items.length; renderSlashMenu(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); SLASH.sel = (SLASH.sel - 1 + SLASH.items.length) % SLASH.items.length; renderSlashMenu(); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSlashItem(SLASH.sel); return; }
+      if (e.key === "Escape") { e.preventDefault(); hideSlashMenu(); return; }
+    }
+  });
+  document.addEventListener("keydown", e => {
+    const k = e.key.toLowerCase();
+    const editorOpen = el("editor").classList.contains("open");
+    if ((e.ctrlKey || e.metaKey) && k === "k") { e.preventDefault(); el("searchBox").focus(); return; }
+    if ((e.ctrlKey || e.metaKey) && (k === "s" || k === "enter")) {
+      if (editorOpen && APP.unlocked && !SLASH.open) { e.preventDefault(); saveEntry(); }
+      return;
+    }
+    if (e.key === "Escape" && editorOpen && !SLASH.open) { modalClose("editor"); }
+  });
   el("imageInput").addEventListener("change", e => {
     if (APP.key) handleImages([...e.target.files]);
     e.target.value = "";
