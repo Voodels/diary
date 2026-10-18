@@ -142,24 +142,39 @@
                 <button id="saveEntryBtn" class="btn primary">Done</button>
               </div>
               <div class="ed-toolbar" id="edToolbar">
-                <button class="tb-btn" data-act="h1" title="Heading 1">H1</button>
-                <button class="tb-btn" data-act="h2" title="Heading 2">H2</button>
+                <button class="tb-btn" data-act="h1" title="Heading 1 (Ctrl+Alt+1)">H1</button>
+                <button class="tb-btn" data-act="h2" title="Heading 2 (Ctrl+Alt+2)">H2</button>
+                <button class="tb-btn" data-act="h3" title="Heading 3 (Ctrl+Alt+3)">H3</button>
                 <span class="tb-sep"></span>
-                <button class="tb-btn" data-act="bold" title="Bold"><b>B</b></button>
-                <button class="tb-btn" data-act="italic" title="Italic"><i>I</i></button>
-                <button class="tb-btn" data-act="strike" title="Strikethrough"><s>S</s></button>
-                <button class="tb-btn" data-act="code" title="Inline code">&lt;/&gt;</button>
+                <button class="tb-btn" data-act="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                <button class="tb-btn" data-act="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                <button class="tb-btn" data-act="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+                <button class="tb-btn" data-act="strike" title="Strikethrough (Ctrl+Shift+X)"><s>S</s></button>
+                <button class="tb-btn" data-act="hl" title="Highlight (Ctrl+Shift+H)"><span class="tb-hl">H</span></button>
+                <button class="tb-btn" data-act="code" title="Inline code (Ctrl+Alt+E)">&lt;/&gt;</button>
+                <button class="tb-btn" data-act="codeblock" title="Code block (Ctrl+Alt+C)">{ }</button>
+                <button class="tb-btn" data-act="lnk" title="Link (Ctrl+K)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </button>
                 <span class="tb-sep"></span>
-                <button class="tb-btn" data-act="quote" title="Quote">&gt;</button>
-                <button class="tb-btn" data-act="bullet" title="Bullet list">•</button>
-                <button class="tb-btn" data-act="todo" title="To-do">[]</button>
-                <button class="tb-btn" data-act="num" title="Numbered list">1.</button>
-                <button class="tb-btn" data-act="divider" title="Divider">—</button>
+                <button class="tb-btn" data-act="quote" title="Callout (Ctrl+Shift+9)">&gt;</button>
+                <button class="tb-btn" data-act="bullet" title="Bullet list (Ctrl+Shift+8)">•</button>
+                <button class="tb-btn" data-act="todo" title="To-do (Ctrl+Alt+T)">[]</button>
+                <button class="tb-btn" data-act="num" title="Numbered list (Ctrl+Shift+7)">1.</button>
+                <button class="tb-btn" data-act="divider" title="Divider (Ctrl+Shift+-)">—</button>
+                <button class="tb-btn" data-act="table" title="Table (Ctrl+Alt+L)">TBL</button>
+                <button class="tb-btn" data-act="toc" title="Table of contents">TOC</button>
                 <span class="tb-sep"></span>
                 <button class="tb-btn" data-act="img" title="Add image (encrypted)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L6 21"/></svg>
                 </button>
                 <span class="spacer"></span>
+                <button class="tb-btn" data-act="import" title="Import .md file">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </button>
+                <button class="tb-btn" data-act="export" title="Export as .md">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
                 <span id="edCount" class="muted"></span>
               </div>
               <div class="ed-page">
@@ -178,6 +193,7 @@
                 <input id="edTags" class="tag-add" placeholder="+ tag" autocomplete="off" spellcheck="false">
               </div>
               <input type="file" id="imageInput" accept="image/*" multiple hidden>
+              <input type="file" id="importInput" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
             </div>
           </section>
         </div>

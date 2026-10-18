@@ -547,10 +547,13 @@ function tbInsert(text) {
   afterEdit();
 }
 
+const TABLE_TPL = "| column A | column B |\n| --- | --- |\n| | |";
+
 function tbAction(act) {
   switch (act) {
     case "h1": tbPrefix("# "); break;
     case "h2": tbPrefix("## "); break;
+    case "h3": tbPrefix("### "); break;
     case "quote": tbPrefix("> "); break;
     case "bullet": tbPrefix("- "); break;
     case "todo": tbPrefix("- [ ] "); break;
@@ -559,8 +562,91 @@ function tbAction(act) {
     case "bold": tbWrap("**"); break;
     case "italic": tbWrap("*"); break;
     case "strike": tbWrap("~~"); break;
+    case "underline": tbWrap("++"); break;
+    case "hl": tbWrap("=="); break;
     case "code": tbWrap("`"); break;
+    case "codeblock": tbCodeBlock(); break;
+    case "lnk": tbLink(); break;
+    case "table": tbInsert(TABLE_TPL); break;
+    case "toc": tbInsert("[[toc]]"); break;
     case "img": el("imageInput").click(); break;
+    case "import": el("importInput").click(); break;
+    case "export": exportEntryMd(); break;
+  }
+}
+
+function tbCodeBlock() {
+  const ta = el("edText");
+  const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
+  const chosen = v.slice(s, e2) || "code";
+  const pre = s > 0 && v[s - 1] !== "\n" ? "\n" : "";
+  const ins = pre + "```\n" + chosen + "\n```\n";
+  ta.value = v.slice(0, s) + ins + v.slice(e2);
+  ta.focus();
+  const ss = s + pre.length + 4;
+  ta.setSelectionRange(ss, ss + chosen.length);
+  afterEdit();
+}
+
+function tbLink() {
+  const ta = el("edText");
+  const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
+  const chosen = v.slice(s, e2) || "text";
+  const ins = "[" + chosen + "](url)";
+  ta.value = v.slice(0, s) + ins + v.slice(e2);
+  ta.focus();
+  if (chosen === "text") ta.setSelectionRange(s + 1, s + 5);
+  else ta.setSelectionRange(s + chosen.length + 3, s + chosen.length + 6);
+  afterEdit();
+}
+
+function autoTodo() {
+  const ta = el("edText");
+  const pos = ta.selectionStart;
+  const v = ta.value;
+  const ls = v.lastIndexOf("\n", pos - 1) + 1;
+  const seg = v.slice(ls, pos);
+  const m = seg.match(/^(\[\]|\[ \]|\[x\]|\[X\]) $/);
+  if (!m) return;
+  const mark = m[1].toLowerCase() === "[x]" ? "- [x] " : "- [ ] ";
+  ta.value = v.slice(0, ls) + mark + v.slice(pos);
+  ta.setSelectionRange(ls + mark.length, ls + mark.length);
+}
+
+function exportEntryMd() {
+  const id = el("editor").dataset.id;
+  const e = id ? APP.entries.find(x => x.id === id) : null;
+  const title = el("edTitle").value.trim() || (e ? e.meta.title : "") || "untitled";
+  const text = el("edText").value;
+  const blob = new Blob(["# " + title + "\n\n" + text + "\n"], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = slugify(title) + ".md";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(".md exported", "ok");
+}
+
+async function importMdFile(file) {
+  try {
+    const text = await file.text();
+    let title = file.name.replace(/\.(md|markdown|txt)$/i, "").trim();
+    let body = String(text);
+    const h = body.match(/^#\s+(.+)/);
+    if (h) {
+      title = h[1].trim();
+      body = body.slice(h[0].length);
+    }
+    openEditor(null);
+    el("edTitle").value = title;
+    el("edText").value = body.replace(/\s+$/, "\n");
+    el("edEdited").textContent = "imported " + file.name;
+    afterEdit();
+    toast("Markdown imported into a new page", "ok");
+  } catch (err) {
+    toast("Import failed: " + err.message, "err");
   }
 }
 
@@ -703,10 +789,16 @@ async function saveSettings() {
 const SLASH_ITEMS = [
   { id: "h1", ic: "H1", label: "Heading 1", hint: "#", ins: "# " },
   { id: "h2", ic: "H2", label: "Heading 2", hint: "##", ins: "## " },
+  { id: "h3", ic: "H3", label: "Heading 3", hint: "###", ins: "### " },
   { id: "bullet", ic: "•", label: "Bullet list", hint: "-", ins: "- " },
   { id: "todo", ic: "[]", label: "To-do", hint: "- [ ]", ins: "- [ ] " },
-  { id: "quote", ic: ">", label: "Quote", hint: ">", ins: "> " },
+  { id: "quote", ic: ">", label: "Callout", hint: ">", ins: "> " },
   { id: "num", ic: "1.", label: "Numbered list", hint: "1.", ins: "1. " },
+  { id: "hl", ic: "==", label: "Highlight", hint: "==", ins: "==highlight==", sel: [2, 11] },
+  { id: "u", ic: "U", label: "Underline", hint: "++", ins: "++underline++", sel: [2, 11] },
+  { id: "lnk", ic: "A", label: "Link", hint: "Ctrl+K", ins: "[text](url)", sel: [1, 5] },
+  { id: "table", ic: "TBL", label: "Table", hint: "rows", ins: TABLE_TPL },
+  { id: "toc", ic: "TOC", label: "Table of contents", hint: "auto", ins: "[[toc]]\n" },
   { id: "div", ic: "—", label: "Divider", hint: "---", ins: "---\n" },
   { id: "code", ic: "</>", label: "Code block", hint: "```", ins: "```\n\n```", caret: 4 },
   { id: "img", ic: "img", label: "Image", hint: "file", ins: null }
@@ -815,6 +907,7 @@ function pickSlashItem(i) {
   ta.value = v.slice(0, slashIdx) + it.ins + v.slice(end);
   const caret = slashIdx + (it.caret !== undefined ? it.caret : it.ins.length);
   ta.selectionStart = ta.selectionEnd = caret;
+  if (it.sel) ta.setSelectionRange(slashIdx + it.sel[0], slashIdx + it.sel[1]);
   ta.focus();
   afterEdit();
 }
@@ -882,6 +975,7 @@ function wire() {
   });
   el("edTags").addEventListener("blur", commitTagInput);
   el("edText").addEventListener("input", () => {
+    autoTodo();
     updateCount();
     slashDetection();
     clearTimeout(previewTimer);
@@ -895,11 +989,46 @@ function wire() {
       if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSlashItem(SLASH.sel); return; }
       if (e.key === "Escape") { e.preventDefault(); hideSlashMenu(); return; }
     }
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    const k = e.key.toLowerCase();
+    if (e.altKey) {
+      switch (e.code) {
+        case "Digit1": e.preventDefault(); tbPrefix("# "); return;
+        case "Digit2": e.preventDefault(); tbPrefix("## "); return;
+        case "Digit3": e.preventDefault(); tbPrefix("### "); return;
+        case "KeyC": e.preventDefault(); tbCodeBlock(); return;
+        case "KeyE": e.preventDefault(); tbWrap("`"); return;
+        case "KeyT": e.preventDefault(); tbPrefix("- [ ] "); return;
+        case "KeyL": e.preventDefault(); tbInsert(TABLE_TPL); return;
+      }
+      return;
+    }
+    if (e.shiftKey) {
+      if (k === "x") { e.preventDefault(); tbWrap("~~"); return; }
+      if (k === "h") { e.preventDefault(); tbWrap("=="); return; }
+      switch (e.code) {
+        case "Digit8": e.preventDefault(); tbPrefix("- "); return;
+        case "Digit7": e.preventDefault(); tbPrefix("1. "); return;
+        case "Digit9": e.preventDefault(); tbPrefix("> "); return;
+        case "Minus": case "NumpadSubtract": e.preventDefault(); tbInsert("---"); return;
+      }
+    }
+    if (k === "b") { e.preventDefault(); tbWrap("**"); return; }
+    if (k === "i") { e.preventDefault(); tbWrap("*"); return; }
+    if (k === "u") { e.preventDefault(); tbWrap("++"); return; }
+    if (k === "k") { e.preventDefault(); tbLink(); return; }
   });
   document.addEventListener("keydown", e => {
     const k = e.key.toLowerCase();
     const editorOpen = el("editor").classList.contains("open");
-    if ((e.ctrlKey || e.metaKey) && k === "k") { e.preventDefault(); el("searchBox").focus(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "k") {
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      if (editorOpen && document.activeElement === el("edText")) { tbLink(); return; }
+      el("searchBox").focus();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && (k === "s" || k === "enter")) {
       if (editorOpen && APP.unlocked && !SLASH.open) { e.preventDefault(); saveEntry(); }
       return;
@@ -911,6 +1040,11 @@ function wire() {
   });
   el("imageInput").addEventListener("change", e => {
     if (APP.key) handleImages([...e.target.files]);
+    e.target.value = "";
+  });
+  el("importInput").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    if (f && APP.key) importMdFile(f);
     e.target.value = "";
   });
   document.addEventListener("paste", e => {
