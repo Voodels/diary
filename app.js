@@ -82,10 +82,6 @@ function updateGateReactions() {
     APP.gate.stage = stage;
     Moods.setMood(GATE_STAGE_MOODS[stage]);
   }
-  clearTimeout(APP.gate.autoTimer);
-  if (stage >= 3) {
-    APP.gate.autoTimer = setTimeout(() => unlockAttempt(), 900);
-  }
 }
 
 function gateWrong(msgMood) {
@@ -141,8 +137,7 @@ async function unlockAttempt() {
       Moods.setMood("gloat");
       setTimeout(() => afterUnlock(key, meta), 550);
     } else {
-      el("connectBox").open = true;
-      el("lockMsg").textContent = "Connect GitHub first (below).";
+      el("lockMsg").textContent = "Vault unreachable from this address.";
       Moods.setMood("curious");
     }
   } catch (err) {
@@ -153,8 +148,7 @@ async function unlockAttempt() {
       el("setupMsg").textContent = "No vault yet. Paste the token once, claim her sentence below, then she will always be on this screen.";
       el("setupWaifu").focus();
     } else if (err.status === 404 || (err.message && err.message.includes("not found"))) {
-      el("connectBox").open = true;
-      gateWrong("Repo not found — check the connect fields below.");
+      gateWrong("Repo not found — config problem.");
     } else {
       gateWrong(err.message === "Wrong password" ? "" : err.message);
     }
@@ -177,12 +171,10 @@ async function recoverTokenIfNeeded(key, hint) {
     if (saved && saved.token && saved.owner && saved.repo) {
       setGithubConfig(saved);
       Vault.invalidateCache();
-      refreshConnectPrefill();
       toast("Token recovered — no pasting needed", "ok");
     }
   } catch (err) {
-    el("connectBox").open = true;
-    toast("Auto-recovery unavailable — paste token once below", "err");
+    toast("Auto-recovery failed — open Settings to paste a token after unlocking", "err");
   }
 }
 
@@ -216,7 +208,7 @@ async function afterUnlock(key, meta, hint) {
     toast("Failed to load entries: " + err.message, "err");
     el("loadingMsg").textContent = "";
     if (!getGithubConfig() || !getGithubConfig().token) {
-      el("lockMsg").textContent = "Token missing — lock, then paste it once in connect GitHub.";
+      el("loadingMsg").textContent = "Token expired or missing — opens Settings inside the app.";
     }
   }
 }
@@ -401,25 +393,6 @@ async function handleImages(files) {
   }
 }
 
-async function doConnect() {
-  const owner = el("lockOwner").value.trim();
-  const repo = el("lockRepo").value.trim();
-  const token = el("lockToken").value.trim();
-  if (!owner || !repo || !token) { el("lockMsg").textContent = "Fill all fields."; return; }
-  try {
-    await ghVerifyToken({ owner, repo, token });
-  } catch (err) {
-    el("lockMsg").textContent = err.message;
-    return;
-  }
-  setGithubConfig({ owner, repo, branch: "main", token });
-  Vault.invalidateCache();
-  el("connectBox").open = false;
-  el("lockMsg").textContent = "";
-  toast("GitHub connected. Now answer her.", "ok");
-  refreshConnectPrefill();
-}
-
 async function doCreateVault() {
   const p1 = Vault.normalizeWaifu(el("setupWaifu").value);
   const p2 = Vault.normalizeWaifu(el("setupWaifu2").value);
@@ -455,12 +428,6 @@ async function doCreateVault() {
   }
 }
 
-function refreshConnectPrefill() {
-  const cfg = getGithubConfig() || {};
-  el("lockOwner").value = cfg.owner || "";
-  el("lockRepo").value = cfg.repo || "";
-}
-
 function refreshSettingsInputs() {
   const cfg = getGithubConfig() || {};
   el("setOwner").value = cfg.owner || "";
@@ -490,18 +457,15 @@ async function saveSettings() {
 }
 
 function wire() {
-  Moods.mount(el("avatarHost"), "art/her-gate.webp");
+  Moods.mount(el("avatarHost"));
   const hint = deriveRepoFromLocation();
   if (hint) {
     if (!el("setupOwner").value) el("setupOwner").value = hint.owner;
     if (!el("setupRepo").value) el("setupRepo").value = hint.repo;
   }
-  refreshConnectPrefill();
 
   el("gatePass").addEventListener("input", updateGateReactions);
   el("gatePass").addEventListener("keydown", e => { if (e.key === "Enter") unlockAttempt(); });
-  el("connectBtn").onclick = doConnect;
-  el("goSetup").onclick = e => { e.preventDefault(); showScreen("setup"); };
   el("goLock").onclick = e => { e.preventDefault(); showScreen("gate"); resetGate(); };
   el("createBtn").onclick = doCreateVault;
   el("setupWaifu2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
