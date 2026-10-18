@@ -273,7 +273,7 @@ function renderGrid() {
       <div class="card-date">${fmtDateTime(e.meta.updated || e.meta.created)}</div>
       <div class="card-excerpt">${escapeHtml(text)}</div>
       <div class="card-tags">${tags}</div>
-      <div class="card-actions"><button class="icon-btn" data-act="del" title="Delete">🗑</button></div>
+      <div class="card-actions"><button class="icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button></div>
     </div>`;
   }).join("");
   grid.querySelectorAll(".card").forEach(c => {
