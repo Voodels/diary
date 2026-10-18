@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encrypted Diary</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark">
+
+<div id="setupScreen" hidden>
+  <div class="auth-card">
+    <h2>Create your encrypted vault</h2>
+    <p class="hint">One repo, one password. Your diary is encrypted in your browser before it touches GitHub.</p>
+    <label>GitHub owner <input id="setupOwner" placeholder="your-username"></label>
+    <label>Repository <input id="setupRepo" placeholder="diary"></label>
+    <label>Token (fine-grained PAT, Contents: Read+Write) <input id="setupToken" type="password" placeholder="github_pat_..."></label>
+    <label>Password (min 8 chars) <input id="setupPass" type="password"></label>
+    <label>Confirm password <input id="setupPass2" type="password"></label>
+    <button id="createBtn" class="btn primary">Create vault</button>
+    <div id="setupMsg" class="msg"></div>
+    <p class="hint">No password recovery. If you lose it, the diary is gone forever.</p>
+  </div>
+</div>
+
+<div id="lockScreen" hidden>
+  <div class="auth-card">
+    <h2>🔒 Encrypted Diary</h2>
+    <label>GitHub owner <input id="lockOwner" placeholder="your-username"></label>
+    <label>Repository <input id="lockRepo" placeholder="diary"></label>
+    <label>Token <input id="lockToken" type="password" placeholder="github_pat_..."></label>
+    <label>Password <input id="lockPass" type="password" placeholder="Your vault password"></label>
+    <button id="lockBtn" class="btn primary">Unlock</button>
+    <div id="lockMsg" class="msg"></div>
+    <p class="hint">First time? <a href="#" id="goSetup">Create a vault</a> instead.</p>
+  </div>
+</div>
+
+<div id="appScreen" hidden>
+  <header class="topbar">
+    <div class="brand">Encrypted Diary</div>
+    <input id="searchBox" type="search" placeholder="Search entries...">
+    <div class="spacer"></div>
+    <button id="themeToggle" class="icon-btn" title="Toggle theme">◐</button>
+    <button id="settingsBtn" class="icon-btn" title="Settings">⚙</button>
+    <button id="lockNowBtn" class="icon-btn" title="Lock vault">🔒</button>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <button id="newEntryBtn" class="btn primary full">+ New entry</button>
+      <div id="tagList" class="tag-list"></div>
+      <div id="loadingMsg" class="hint"></div>
+    </aside>
+    <main id="grid" class="grid"></main>
+    <div id="emptyState" class="empty">
+      <p>No entries yet.</p>
+      <p class="hint">Click “+ New entry” to write your first one.</p>
+    </div>
+  </div>
+</div>
+
+<div id="editor" class="modal">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <span id="edDate" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="previewBtn" class="btn ghost">Preview</button>
+      <button id="closeEditorBtn" class="icon-btn">✕</button>
+    </div>
+    <input id="edTitle" class="title-input" placeholder="Untitled">
+    <input id="edTags" class="tags-input" placeholder="tags, comma separated">
+    <textarea id="edText" placeholder="Write anything. Markdown works: # heading, **bold**, - list"></textarea>
+    <div id="previewPane" class="preview" hidden></div>
+    <input type="file" id="imageInput" accept="image/*" multiple hidden>
+    <div class="modal-foot">
+      <button id="addImageBtn" class="btn ghost">Add image (encrypted)</button>
+      <span class="spacer"></span>
+      <button id="saveEntryBtn" class="btn primary">Done — encrypt &amp; push</button>
+    </div>
+  </div>
+</div>
+
+<div id="settingsModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head"><strong>Settings</strong><span class="spacer"></span><button id="closeSettingsBtn" class="icon-btn">✕</button></div>
+    <label>GitHub owner <input id="setOwner"></label>
+    <label>Repository <input id="setRepo"></label>
+    <label>Branch <input id="setBranch" placeholder="main"></label>
+    <label>Token <input id="setToken" type="password"></label>
+    <button id="saveSettingsBtn" class="btn primary full">Save</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="crypto.js"></script>
+<script src="github.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
