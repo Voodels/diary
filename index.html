@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dear diary</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 27C10 21 4 16.5 4 10.8 4 6.9 7 4.5 10.2 4.5c2.3 0 4.3 1.3 5.8 3.4 1.5-2.1 3.5-3.4 5.8-3.4C25 4.5 28 6.9 28 10.8c0 5.7-6 10.2-12 16.2z' fill='%23FF86B3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body class="dark">
 
@@ -213,16 +214,26 @@
     <label>Branch <input id="setBranch" placeholder="main"></label>
     <label>Token <input id="setToken" type="password"></label>
     <button id="saveSettingsBtn" class="btn primary full">Save</button>
+    <div class="diag-box">
+      <div class="diag-head">Diagnostics — last errors on this device</div>
+      <textarea id="diagBox" readonly rows="6" spellcheck="false" placeholder="no errors logged"></textarea>
+      <div class="diag-btns">
+        <button id="diagCopyBtn" class="btn soft sm">Copy</button>
+        <button id="diagClearBtn" class="btn ghost sm">Clear log</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div id="toasts"></div>
 
-<script src="crypto.js"></script>
-<script src="github.js"></script>
-<script src="markdown.js"></script>
-<script src="avatar.js"></script>
-<script src="vault.js"></script>
-<script src="app.js"></script>
+<script src="util.js?v=6"></script>
+<script src="logging.js?v=6"></script>
+<script src="crypto.js?v=6"></script>
+<script src="github.js?v=6"></script>
+<script src="markdown.js?v=6"></script>
+<script src="avatar.js?v=6"></script>
+<script src="vault.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

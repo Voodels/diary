@@ -31,9 +31,7 @@ function el(id) {
   return document.getElementById(id);
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
+const escapeHtml = s => Util.escapeHtml(s);
 
 function fmtDateTime(iso) {
   const d = new Date(iso);
@@ -69,9 +67,7 @@ function uid() {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function slugify(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30) || "entry";
-}
+const slugify = s => Util.slugify(s);
 
 function toast(msg, kind) {
   const wrap = el("toasts");
@@ -756,6 +752,29 @@ function refreshSettingsInputs() {
   el("setRepo").value = cfg.repo || "";
   el("setToken").value = cfg.token || "";
   el("setBranch").value = cfg.branch || "main";
+  el("diagBox").value = Log.format();
+}
+
+function wireDiagnostics() {
+  el("diagCopyBtn").onclick = async () => {
+    const text = Log.format();
+    if (!text) { toast("Log is empty", "ok"); return; }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Diagnostics copied", "ok");
+    } catch (err) {
+      el("diagBox").value = text;
+      el("diagBox").focus();
+      el("diagBox").select();
+      toast("Select & copy manually (clipboard blocked)", "err");
+    }
+  };
+  el("diagClearBtn").onclick = () => {
+    Log.clear();
+    el("diagBox").value = "";
+    el("diagBox").placeholder = "no errors logged";
+    toast("Log cleared", "ok");
+  };
 }
 
 async function saveSettings() {
@@ -913,6 +932,7 @@ function pickSlashItem(i) {
 }
 
 function wire() {
+  wireDiagnostics();
   Moods.mount(el("avatarHost"));
   mountMiniAvatars();
   const hint = deriveRepoFromLocation();

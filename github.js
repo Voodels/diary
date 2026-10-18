@@ -15,11 +15,7 @@ async function ghGetFilePublic(owner, repo, path) {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("GitHub fetch failed " + res.status);
   const j = await res.json();
-  const b64 = j.content.replace(/\n/g, "");
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(Util.b64decode(j.content.replace(/\n/g, "")));
 }
 
 let ghCfg = null;
@@ -88,11 +84,7 @@ async function ghGetFileBG(path, repoName) {
     const raw = await ghFetchBlob(j.git_url);
     return new TextDecoder().decode(new Uint8Array(raw));
   }
-  const b64 = j.content.replace(/\n/g, "");
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(Util.b64decode(j.content.replace(/\n/g, "")));
 }
 
 async function ghFetchBlob(blobUrl) {
@@ -147,12 +139,7 @@ async function ghDeleteFile(path, message, repoName) {
 async function ghPutBinary(path, arrayBuffer, message, contentType, repoName) {
   const cfg = getGithubConfig();
   const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
-  let bin = "";
-  const bytes = new Uint8Array(arrayBuffer);
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  }
-  const b64 = btoa(bin);
+  const b64 = Util.b64encode(arrayBuffer);
   const existing = await ghRequest("GET", path, undefined, true, repoName);
   const body = { message: message || "vault update", content: b64 };
   if (existing && existing.sha) body.sha = existing.sha;

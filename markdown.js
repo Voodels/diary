@@ -1,7 +1,5 @@
 const MD = (() => {
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+  const escapeHtml = s => Util.escapeHtml(s);
 
   const IMG_RE = /!\[(.*?)\]\(image:([^)\s]+)\)/g;
   const TOC_MARK = "\u0000TOC\u0000";

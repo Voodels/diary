@@ -1,20 +1,7 @@
 const PBKDF2_ITERATIONS = 310000;
 
-function b64encode(buf) {
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(bin);
-}
-
-function b64decode(str) {
-  const bin = atob(str);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
+const b64encode = Util.b64encode;
+const b64decode = Util.b64decode;
 
 function getRandomBytes(n) {
   const arr = new Uint8Array(n);
