@@ -129,7 +129,18 @@ async function unlockAttempt() {
       Moods.setMood("curious");
     }
   } catch (err) {
-    gateWrong(err.message === "Wrong password" ? "" : err.message);
+    if (err.message && err.message.includes("No vault found")) {
+      Moods.setMood("curious");
+      showScreen("setup");
+      el("setupMsg").className = "hint";
+      el("setupMsg").textContent = "No vault yet. Paste the token once, claim her sentence below, then she will always be on this screen.";
+      el("setupWaifu").focus();
+    } else if (err.status === 404 || (err.message && err.message.includes("not found"))) {
+      el("connectBox").open = true;
+      gateWrong("Repo not found — check the connect fields below.");
+    } else {
+      gateWrong(err.message === "Wrong password" ? "" : err.message);
+    }
   } finally {
     APP.gate.busy = false;
   }
