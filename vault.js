@@ -5,8 +5,14 @@ const Vault = (() => {
     return String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
+  function dataRepo() {
+    if (typeof APP !== "undefined" && APP && APP.meta && APP.meta.dataRepo) return APP.meta.dataRepo;
+    const cfg = getGithubConfig();
+    return cfg && cfg.vaultRepo ? cfg.vaultRepo : undefined;
+  }
+
   function entryPath(e) {
-    return VAULT_PATHS.entries + e.id + "-" + slugify((e.meta && e.meta.title) || "untitled") + ".json";
+    return VAULT_PATHS.entries + e.id + ".json";
   }
 
   function imagePath(imageId) {
@@ -67,11 +73,11 @@ const Vault = (() => {
   }
 
   async function listEntries() {
-    const files = await ghListVaultFiles(VAULT_PATHS.entries);
+    const files = await ghListVaultFiles(VAULT_PATHS.entries, dataRepo());
     const entries = [];
     for (const name of files) {
       try {
-        const raw = await ghGetFileBG(VAULT_PATHS.entries + name);
+        const raw = await ghGetFileBG(VAULT_PATHS.entries + name, dataRepo());
         const plain = await decryptToString(APP.key, raw);
         const obj = JSON.parse(plain);
         obj.id = name.replace(/\.json$/, "");
@@ -86,19 +92,19 @@ const Vault = (() => {
 
   async function saveEncryptedPath(path, entry) {
     const encrypted = await encryptString(APP.key, JSON.stringify(entry));
-    await ghPutFileBG(path, encrypted, "vault update");
+    await ghPutFileBG(path, encrypted, "vault update", dataRepo());
   }
 
   async function removeFile(path, message) {
-    await ghDeleteFile(path, message);
+    await ghDeleteFile(path, message, dataRepo());
   }
 
   async function putImage(imageId, encPayload) {
-    await ghPutBinary(imagePath(imageId), new TextEncoder().encode(encPayload), "vault update");
+    await ghPutBinary(imagePath(imageId), new TextEncoder().encode(encPayload), "vault update", undefined, dataRepo());
   }
 
   async function readEntryImage(imageId, key) {
-    const raw = await ghGetFileBG(imagePath(imageId));
+    const raw = await ghGetFileBG(imagePath(imageId), dataRepo());
     if (!raw) throw new Error("image missing");
     return decryptToBytes(key, raw);
   }

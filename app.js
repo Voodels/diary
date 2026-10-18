@@ -224,6 +224,8 @@ async function lockVault() {
   APP.unlocked = false;
   APP.entries = [];
   APP.meta = null;
+  for (const url of IMG_CACHE.values()) URL.revokeObjectURL(url);
+  IMG_CACHE.clear();
   document.body.classList.remove("unlocked");
   showScreen("gate");
   resetGate();
@@ -334,10 +336,11 @@ function openEditor(id) {
   el("edTags").value = e ? (e.meta.tags || []).join(", ") : "";
   el("edText").value = e ? e.text || "" : "";
   el("edDate").textContent = e ? "Last edited " + fmtDateTime(e.meta.updated || e.meta.created) : "New entry";
-  el("previewPane").hidden = true;
+  el("previewPane").hidden = !isWide();
   el("edText").hidden = false;
   hideSlashMenu();
   updateCount();
+  if (isWide()) renderPreviewLive();
   modalOpen("editor");
   const sc = document.querySelector(".page-scroll");
   if (sc) sc.scrollTop = 0;
@@ -416,13 +419,20 @@ function sniffMime(b) {
   return "image/png";
 }
 
+const IMG_CACHE = new Map();
+
 async function resolveImages(pane) {
   const slots = pane.querySelectorAll(".img-slot");
   for (const s of slots) {
+    const id = s.dataset.imageId;
     try {
-      const buf = await Vault.readEntryImage(s.dataset.imageId, APP.key);
-      const mime = sniffMime(new Uint8Array(buf));
-      const url = URL.createObjectURL(new Blob([buf], { type: mime }));
+      let url = IMG_CACHE.get(id);
+      if (!url) {
+        const buf = await Vault.readEntryImage(id, APP.key);
+        const mime = sniffMime(new Uint8Array(buf));
+        url = URL.createObjectURL(new Blob([buf], { type: mime }));
+        IMG_CACHE.set(id, url);
+      }
       const img = document.createElement("img");
       img.className = "entry-img";
       img.src = url;
@@ -435,20 +445,36 @@ async function resolveImages(pane) {
   }
 }
 
+let previewTimer = null;
+
+function isWide() {
+  return window.matchMedia("(min-width: 1100px)").matches;
+}
+
+function renderPreviewLive() {
+  const pane = el("previewPane");
+  if (pane.hidden) return;
+  pane.innerHTML = MD.render(el("edText").value);
+  resolveImages(pane);
+}
+
 async function handleImages(files) {
   for (const f of files) {
     if (!f.type.startsWith("image/")) continue;
     try {
       const buf = await f.arrayBuffer();
       const encPayload = await encryptBytes(APP.key, buf);
-      const imageId = uid() + "-" + slugify(f.name.replace(/\.[^.]+$/, ""));
+      const name = /^image\.\w+$/i.test(f.name || "") ? "pasted image" : (f.name || "image");
+      const imageId = uid();
       await Vault.putImage(imageId, encPayload);
-      el("edText").value += `\n![${f.name}](image:${imageId})\n`;
-      toast("Image encrypted & uploaded: " + f.name, "ok");
+      el("edText").value += `\n![${name}](image:${imageId})\n`;
+      toast("Image encrypted & uploaded: " + name, "ok");
     } catch (err) {
       toast("Image upload failed: " + err.message, "err");
     }
   }
+  updateCount();
+  if (!el("previewPane").hidden) renderPreviewLive();
 }
 
 async function doCreateVault() {
@@ -664,7 +690,12 @@ function wire() {
   el("closeSettingsBtn").onclick = () => modalClose("settingsModal");
   el("closeEditorBtn").onclick = () => modalClose("editor");
   el("searchBox").addEventListener("input", e => { APP.filter.search = e.target.value; renderGrid(); });
-  el("edText").addEventListener("input", () => { updateCount(); slashDetection(); });
+  el("edText").addEventListener("input", () => {
+    updateCount();
+    slashDetection();
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => { if (!el("previewPane").hidden) renderPreviewLive(); }, 220);
+  });
   el("edText").addEventListener("click", slashDetection);
   el("edText").addEventListener("keydown", e => {
     if (SLASH.open && !e.ctrlKey && !e.metaKey) {
@@ -687,6 +718,27 @@ function wire() {
   el("imageInput").addEventListener("change", e => {
     if (APP.key) handleImages([...e.target.files]);
     e.target.value = "";
+  });
+  document.addEventListener("paste", e => {
+    if (!APP.key || !el("editor").classList.contains("open")) return;
+    const items = e.clipboardData ? Array.from(e.clipboardData.items) : [];
+    const files = items.filter(it => it.kind === "file" && it.type.startsWith("image/")).map(it => it.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    e.preventDefault();
+    handleImages(files);
+  });
+  window.addEventListener("resize", () => {
+    if (el("editor").classList.contains("open") && isWide() && el("previewPane").hidden) {
+      el("previewPane").hidden = false;
+      renderPreviewLive();
+    }
+  });
+  window.addEventListener("error", ev => {
+    try { toast("Something broke: " + (ev.message || "unknown error"), "err"); } catch (e) {}
+  });
+  window.addEventListener("unhandledrejection", ev => {
+    const msg = ev.reason && ev.reason.message ? ev.reason.message : "sync error";
+    try { toast("Error: " + msg, "err"); } catch (e) {}
   });
   el("addImageBtn").onclick = () => el("imageInput").click();
   el("themeToggle").onclick = () => {

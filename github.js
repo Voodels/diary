@@ -39,10 +39,15 @@ function getGithubConfig() {
   return ghCfg;
 }
 
-async function ghRequest(method, path, body, raw) {
+function repoFor(repoName) {
+  const cfg = getGithubConfig();
+  return repoName || (cfg && cfg.repo);
+}
+
+async function ghRequest(method, path, body, raw, repoName) {
   const cfg = getGithubConfig();
   if (!cfg) throw new Error("GitHub not configured");
-  const url = path.startsWith("http") ? path : GH_API + "/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + path;
+  const url = path.startsWith("http") ? path : GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
   const headers = {
     "Accept": "application/vnd.github+json",
     "Authorization": "Bearer " + cfg.token
@@ -76,8 +81,8 @@ function ghPathFor(entryPath) {
   return entryPath;
 }
 
-async function ghGetFileBG(path) {
-  const j = await ghRequest("GET", path);
+async function ghGetFileBG(path, repoName) {
+  const j = await ghRequest("GET", path, undefined, false, repoName);
   if (!j || !j.content) return null;
   if (j.encoding !== "base64") throw new Error("unexpected encoding " + j.encoding);
   const b64 = j.content.replace(/\n/g, "");
@@ -87,9 +92,9 @@ async function ghGetFileBG(path) {
   return new TextDecoder().decode(bytes);
 }
 
-async function ghGetFileBinary(path) {
+async function ghGetFileBinary(path, repoName) {
   const cfg = getGithubConfig();
-  const url = GH_API + "/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + path;
+  const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
   const res = await fetch(url, {
     headers: {
       "Accept": "application/vnd.github.raw",
@@ -101,21 +106,21 @@ async function ghGetFileBinary(path) {
   return await res.arrayBuffer();
 }
 
-async function ghPutFileBG(path, contentStr, message) {
-  const existing = await ghRequest("GET", path, undefined, true);
+async function ghPutFileBG(path, contentStr, message, repoName) {
+  const existing = await ghRequest("GET", path, undefined, true, repoName);
   const body = {
     message: message || "vault update",
     content: btoa(contentStr)
   };
   if (existing && existing.sha) body.sha = existing.sha;
-  return ghRequest("PUT", path, body);
+  return ghRequest("PUT", path, body, false, repoName);
 }
 
-async function ghDeleteFile(path, message) {
-  const existing = await ghRequest("GET", path, undefined, true);
+async function ghDeleteFile(path, message, repoName) {
+  const existing = await ghRequest("GET", path, undefined, true, repoName);
   if (!existing) return;
   const cfg = getGithubConfig();
-  const url = GH_API + "/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + path;
+  const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
   const res = await fetch(url, {
     method: "DELETE",
     headers: {
@@ -132,16 +137,16 @@ async function ghDeleteFile(path, message) {
   if (!res.ok && res.status !== 404) throw new Error("GitHub delete failed " + res.status);
 }
 
-async function ghPutBinary(path, arrayBuffer, message, contentType) {
+async function ghPutBinary(path, arrayBuffer, message, contentType, repoName) {
   const cfg = getGithubConfig();
-  const url = GH_API + "/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + path;
+  const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
   let bin = "";
   const bytes = new Uint8Array(arrayBuffer);
   for (let i = 0; i < bytes.length; i += 0x8000) {
     bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   }
   const b64 = btoa(bin);
-  const existing = await ghRequest("GET", path, undefined, true);
+  const existing = await ghRequest("GET", path, undefined, true, repoName);
   const body = { message: message || "vault update", content: b64 };
   if (existing && existing.sha) body.sha = existing.sha;
   const res = await fetch(url, {
@@ -161,9 +166,9 @@ async function ghPutBinary(path, arrayBuffer, message, contentType) {
   return res.json();
 }
 
-async function ghListDir(path) {
+async function ghListDir(path, repoName) {
   const cfg = getGithubConfig();
-  const url = GH_API + "/repos/" + cfg.owner + "/" + cfg.repo + "/contents/" + path;
+  const url = GH_API + "/repos/" + cfg.owner + "/" + repoFor(repoName) + "/contents/" + path;
   const res = await fetch(url, {
     headers: {
       "Accept": "application/vnd.github+json",
@@ -175,8 +180,8 @@ async function ghListDir(path) {
   return res.json();
 }
 
-async function ghListVaultFiles(dirPath) {
-  const items = await ghListDir(dirPath);
+async function ghListVaultFiles(dirPath, repoName) {
+  const items = await ghListDir(dirPath, repoName);
   const files = [];
   for (const it of items) {
     if (it.type === "file") files.push(it.name);
