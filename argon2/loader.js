@@ -11,14 +11,14 @@ window.loadArgon2WasmBinary = function () {
 
 window.loadArgon2WasmModule = async function () {
   const binary = await window.loadArgon2WasmBinary();
+  const pre = window.Module || {};
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("argon2 wasm init timeout")), 20000);
-    window.Module = {
-      wasmBinary: binary,
-      onRuntimeInitialized: function () {
-        clearTimeout(timer);
-        resolve(window.Module);
-      }
+    window.Module = Object.assign({}, pre, { wasmBinary: binary });
+    window.Module.onRuntimeInitialized = function () {
+      clearTimeout(timer);
+      try { if (pre.postRun) pre.postRun(); } catch (e) {}
+      resolve(window.Module);
     };
     const s = document.createElement("script");
     s.src = "argon2/dist/argon2.js";
