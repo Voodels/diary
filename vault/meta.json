@@ -1,8 +1,10 @@
 {
-    "v":  1,
-    "salt":  "UmUx4x3i/G/YDxro9OfdqQ==",
-    "iters":  310000,
-    "created":  "2026-10-18T12:51:08.352Z",
-    "check":  "enc-v1:q4NQs/SIQxFddUkuMisY7BsoNxfgi8GlZdZUW2EOf0D6KGV7EI1cROG/Wg==",
-    "dataRepo":  "diary-vault"
+  "v": 2,
+  "kdf": "argon2id",
+  "cost": "m=65536,t=3,p=1",
+  "salt": "1mCzJxi+VvHdoKwey5iLJA==",
+  "check": "enc-v1:kzIgfR9633Qc+GCR88CWvHhvc7SDKFUDVb1vH9sd0XPk/3Pdn6lNLppFLw==",
+  "created": "2026-10-18T12:51:08.352Z",
+  "upgraded": "2026-10-18T18:13:41.819Z",
+  "dataRepo": "diary-vault"
 }
