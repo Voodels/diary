@@ -450,7 +450,12 @@ function openEditor(id) {
   restoreDraftIfAny(id, e);
   hideSlashMenu();
   updateCount();
-  if (isSplit()) renderPreviewLive();
+  if (isSplit()) {
+    el("previewPane").hidden = false;
+    renderPreviewLive();
+  } else {
+    el("previewPane").hidden = true;
+  }
   renderList();
   const sc = document.querySelector(".ed-page");
   if (sc) sc.scrollTop = 0;
@@ -844,7 +849,7 @@ async function resolveImages(pane) {
 let previewTimer = null;
 
 function isSplit() {
-  return window.matchMedia("(min-width: 1300px)").matches;
+  return window.matchMedia("(min-width: 1050px)").matches;
 }
 
 function renderPreviewLive() {
@@ -1261,7 +1266,7 @@ function wire() {
     slashDetection();
     saveDraftSoon();
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => { if (!el("previewPane").hidden) renderPreviewLive(); }, 220);
+    previewTimer = setTimeout(() => { if (!el("previewPane").hidden) renderPreviewLive(); }, 140);
   });
   el("edTitle").addEventListener("input", saveDraftSoon);
   el("edText").addEventListener("click", slashDetection);
@@ -1339,8 +1344,10 @@ function wire() {
     handleImages(files);
   });
   window.addEventListener("resize", () => {
-    if (el("editor").classList.contains("open") && isSplit() && el("previewPane").hidden) {
-      el("previewPane").hidden = false;
+    if (!el("editor").classList.contains("open")) return;
+    const pane = el("previewPane");
+    if (isSplit() && pane.hidden) {
+      pane.hidden = false;
       renderPreviewLive();
     }
   });
