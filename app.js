@@ -366,7 +366,7 @@ function renderList() {
       : "";
     const upd = e.meta.updated || e.meta.created;
     return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}">
-      <div class="nc-title">${escapeHtml(title)}</div>
+      <div class="nc-title">${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
       <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
       <div class="nc-meta">
         <span class="nc-w">${w === 1 ? "1 word" : w + " words"}</span>
@@ -388,6 +388,7 @@ function renderList() {
       deleteEntry(b.closest(".note-card").dataset.id);
     };
   });
+  updateDelights();
 }
 
 async function deleteEntry(id) {
@@ -414,6 +415,89 @@ async function deleteEntry(id) {
 /* ── editor ────────────────────────────────────── */
 
 let ED_TAGS = [];
+
+const ENTRY_MOODS = [
+  { k: "fire", e: "🔥" },
+  { k: "sparkle", e: "✨" },
+  { k: "soft", e: "🫶" },
+  { k: "calm", e: "🧘" },
+  { k: "sleepy", e: "😴" },
+  { k: "sad", e: "🥲" },
+  { k: "storm", e: "⛈️" }
+];
+const MOOD_EMOJI = Object.fromEntries(ENTRY_MOODS.map(m => [m.k, m.e]));
+let ED_MOOD = "";
+
+function renderEdMoods() {
+  el("edMoodRow").innerHTML = ENTRY_MOODS.map(m =>
+    `<button type="button" class="mood-btn${ED_MOOD === m.k ? " on" : ""}" data-mood="${m.k}" aria-label="mood ${m.k}">${m.e}</button>`
+  ).join("") + `<button type="button" class="mood-btn none${ED_MOOD ? "" : " on"}" data-mood="" aria-label="no mood">·</button>`;
+  el("edMoodRow").querySelectorAll(".mood-btn").forEach(b => {
+    b.onclick = () => {
+      ED_MOOD = b.dataset.mood;
+      renderEdMoods();
+      saveDraftSoon();
+    };
+  });
+}
+
+function dayKey(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function computeStreak() {
+  const days = new Set(APP.entries.map(e => dayKey(new Date(e.meta.created || e.meta.updated || Date.now()))));
+  if (!days.size) return { count: 0, todayDone: false };
+  const now = new Date();
+  const todayDone = days.has(dayKey(now));
+  const start = new Date(now);
+  if (!todayDone) start.setDate(start.getDate() - 1);
+  let count = 0;
+  while (days.has(dayKey(start))) {
+    count++;
+    start.setDate(start.getDate() - 1);
+  }
+  return { count, todayDone };
+}
+
+function updateDelights() {
+  const streak = computeStreak();
+  const card = el("streakCard");
+  if (!APP.entries.length) {
+    card.hidden = true;
+  } else {
+    card.hidden = false;
+    card.textContent = streak.count > 0
+      ? (streak.todayDone ? `🔥 ${streak.count}-day streak` : `🔥 ${streak.count}-day streak — write today to keep it`)
+      : "🌱 write today to start a streak";
+  }
+
+  const otd = el("onThisDay");
+  const now = new Date();
+  const matches = APP.entries.filter(e => {
+    const d = new Date(e.meta.created || e.meta.updated || Date.now());
+    return d.getFullYear() < now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  });
+  if (matches.length) {
+    otd.hidden = false;
+    otd.innerHTML = `<div class="otd-title">🕰 on this day</div>` + matches.map(e =>
+      `<button type="button" class="otd-row" data-id="${escapeHtml(e.id)}">${escapeHtml(e.meta.title || "Untitled")} <span class="muted">${new Date(e.meta.created).getFullYear()}</span></button>`
+    ).join("");
+    otd.querySelectorAll(".otd-row").forEach(b => { b.onclick = () => openEditor(b.dataset.id); });
+  } else {
+    otd.hidden = true;
+    otd.innerHTML = "";
+  }
+
+  const recent = [...APP.entries]
+    .sort((a, b) => new Date(b.meta.created || 0) - new Date(a.meta.created || 0))
+    .slice(0, 14)
+    .filter(e => e.meta.mood);
+  el("moodStrip").innerHTML = recent.map(e =>
+    `<span class="mood-dot" data-id="${escapeHtml(e.id)}" title="${escapeHtml(e.meta.title || "Untitled")}">${MOOD_EMOJI[e.meta.mood] || ""}</span>`
+  ).join("");
+  el("moodStrip").querySelectorAll(".mood-dot").forEach(d => { d.onclick = () => openEditor(d.dataset.id); });
+}
 
 function renderEdTags() {
   el("edTagChips").innerHTML = ED_TAGS.map((t, i) =>
@@ -443,6 +527,8 @@ function openEditor(id) {
   el("edTitle").value = e ? e.meta.title || "" : "";
   ED_TAGS = e ? [...(e.meta.tags || [])] : [];
   renderEdTags();
+  ED_MOOD = e ? e.meta.mood || "" : "";
+  renderEdMoods();
   el("edTags").value = "";
   el("edText").value = e ? e.text || "" : "";
   el("edDate").textContent = fmtShort(e ? (e.meta.created || e.meta.updated) : new Date().toISOString());
@@ -474,6 +560,8 @@ function restoreDraftIfAny(id, e) {
     el("edTitle").value = d.title || el("edTitle").value;
     ED_TAGS = [...(d.tags || ED_TAGS)];
     renderEdTags();
+    ED_MOOD = d.mood || ED_MOOD;
+    renderEdMoods();
     el("edText").value = d.text;
     el("edEdited").textContent = "restored draft " + new Date(d.at).toLocaleTimeString();
   } else {
@@ -504,6 +592,7 @@ async function saveEntry() {
       meta: {
         title: title || "Untitled",
         tags,
+        mood: ED_MOOD || undefined,
         created: existing ? existing.meta.created : now,
         updated: now,
         images: existing ? existing.meta.images || [] : []
@@ -540,6 +629,7 @@ function stashDraft(id) {
     localStorage.setItem("ediary_conflict_" + id, JSON.stringify({
       title: el("edTitle").value.trim(),
       tags: [...ED_TAGS],
+      mood: ED_MOOD || "",
       text: el("edText").value,
       at: new Date().toISOString()
     }));
@@ -701,6 +791,7 @@ function saveDraftSoon() {
         id: el("editor").dataset.id,
         title,
         tags: [...ED_TAGS],
+        mood: ED_MOOD || "",
         text,
         at: new Date().toISOString()
       }));

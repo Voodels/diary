@@ -833,6 +833,76 @@ body:not(.dark) .modal { background: rgba(42, 36, 48, 0.35); }
 .side-loading.clickable { cursor: pointer; color: var(--rose-strong); }
 .side-loading.err { color: var(--danger); }
 
+/* ── diary delights: streak / on-this-day / moods ── */
+
+.streak-card {
+  display: inline-block;
+  font-size: 13px;
+  padding: 5px 12px;
+  margin: 2px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glow);
+  color: var(--fg);
+}
+
+.otd {
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin: 4px 0 10px;
+}
+.otd-title {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.otd-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  padding: 5px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.otd-row:hover { background: var(--rose-soft); }
+.otd-row .muted { font-size: 12px; }
+
+.mood-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; }
+.mood-btn {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  min-width: 34px;
+  min-height: 30px;
+  font-size: 15px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.mood-btn:hover { opacity: 1; transform: translateY(-1px); }
+.mood-btn.on { opacity: 1; border-color: var(--rose); background: var(--rose-soft); }
+.mood-btn.none { font-size: 18px; line-height: 1; }
+
+.mood-strip { display: inline-flex; gap: 3px; align-items: center; }
+.mood-dot { cursor: pointer; font-size: 13px; filter: saturate(0.9); }
+.mood-dot:hover { transform: scale(1.15); }
+
+.note-card .nc-mood { margin-right: 2px; }
+
+@media (max-width: 760px) {
+  .list-meta { flex-wrap: wrap; gap: 6px; }
+  .mood-btn { min-width: 40px; min-height: 36px; }
+}
+
 /* ── slash menu ─────────────────────────────────── */
 
 .slash-menu { position: fixed; z-index: 60; width: 268px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35); padding: 6px; }
