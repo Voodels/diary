@@ -101,6 +101,10 @@ body.dark {
   -moz-osx-font-smoothing: grayscale;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -2261,6 +2265,53 @@ body.dark .toast {
   justify-content: center;
   background: radial-gradient(circle at 50% 40%, rgba(224, 83, 136, 0.08), transparent 70%), var(--bg);
   z-index: 50;
+}
+
+.quick-pass-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--rose);
+  color: var(--rose);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(224, 83, 136, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.2s var(--ease);
+  user-select: none;
+}
+
+.quick-pass-btn svg {
+  width: 14px;
+  height: 14px;
+  color: var(--rose);
+  transition: transform 0.2s ease;
+}
+
+.quick-pass-btn:hover {
+  background: var(--rose);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(224, 83, 136, 0.5);
+}
+
+.quick-pass-btn:hover svg {
+  color: #ffffff;
+  transform: scale(1.15);
+}
+
+.quick-pass-btn:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .gate {

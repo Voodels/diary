@@ -244,10 +244,32 @@ async function retrySync() {
   setSyncPill("ok");
 }
 
+const DEVICE_PASS_KEY = "ediary_device_pass";
+
+function getRememberedPass() {
+  try { return localStorage.getItem(DEVICE_PASS_KEY) || ""; } catch (e) { return ""; }
+}
+
+function setRememberedPass(p) {
+  try { if (p) localStorage.setItem(DEVICE_PASS_KEY, p); } catch (e) {}
+}
+
+function clearRememberedPass() {
+  try { localStorage.removeItem(DEVICE_PASS_KEY); } catch (e) {}
+}
+
+function checkQuickPassBtn() {
+  const qb = el("quickPassBtn");
+  if (!qb) return;
+  const hasPass = !!getRememberedPass();
+  qb.hidden = !hasPass || !el("appScreen").hidden;
+}
+
 function showScreen(name) {
   el("setupScreen").hidden = name !== "setup";
   el("lockScreen").hidden = name !== "gate";
   el("appScreen").hidden = name !== "app";
+  checkQuickPassBtn();
 }
 
 function gateTokens() {
@@ -379,6 +401,7 @@ function resetGate() {
   APP.gate.busy = false;
   clearTimeout(APP.gate.autoTimer);
   Moods.setMood("idle", true);
+  checkQuickPassBtn();
 }
 
 function mountMiniAvatars() {
@@ -392,6 +415,8 @@ function mountMiniAvatars() {
 }
 
 async function afterUnlock(key, meta, hint) {
+  const enteredPass = Vault.normalizeWaifu(el("gatePass").value) || getRememberedPass();
+  if (enteredPass) setRememberedPass(enteredPass);
   APP.key = key;
   APP.meta = meta;
   APP.unlocked = true;
@@ -1884,6 +1909,20 @@ function wire() {
   el("gatePass").addEventListener("keydown", e => { if (e.key === "Enter") unlockAttempt(); });
   const gateBtn = el("gateSubmitBtn");
   if (gateBtn) gateBtn.onclick = unlockAttempt;
+  const quickBtn = el("quickPassBtn");
+  if (quickBtn) {
+    quickBtn.onclick = () => {
+      const saved = getRememberedPass();
+      if (!saved) return;
+      showScreen("gate");
+      const gp = el("gatePass");
+      if (gp) {
+        gp.value = saved;
+        updateGateReactions();
+      }
+      unlockAttempt();
+    };
+  }
   el("goLock").onclick = e => { e.preventDefault(); showScreen("gate"); resetGate(); };
   el("createBtn").onclick = doCreateVault;
   el("setupWaifu2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
