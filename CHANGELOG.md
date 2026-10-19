@@ -2,6 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
+- ci: fix lighthouse summary step — use action outputs instead of fragile glob — 2026-10-19
 - ci: lighthouse weekly audits + auto-changelog + dependabot (actions) — 2026-10-19
 - docs: README — setup, threat model, kdf upgrade behavior — 2026-10-19
 - ui: notion-style live preview split at 1050px (sticky rendered pane, 140ms render), mobile polish — 16px inputs, 42px touch targets, fluid toasts, scrollable modals — 2026-10-19
