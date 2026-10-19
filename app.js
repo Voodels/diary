@@ -70,6 +70,65 @@ function uid() {
 
 const slugify = s => Util.slugify(s);
 
+/* ── quick-jump palette (Ctrl/Cmd+K) ───────────── */
+
+const PALETTE = { sel: 0, items: [] };
+
+function paletteScore(e, q) {
+  const title = (e.meta.title || "").toLowerCase();
+  const tags = (e.meta.tags || []).join(" ").toLowerCase();
+  const text = (e.text || "").toLowerCase();
+  if (title.startsWith(q)) return 0;
+  if (title.includes(q)) return 1;
+  if (tags.includes(q)) return 2;
+  const at = text.indexOf(q);
+  return at === -1 ? 999 : 3 + Math.min(1, at / 2000);
+}
+
+function renderPalette() {
+  const q = el("paletteInput").value.trim().toLowerCase();
+  const list = visibleEntries();
+  PALETTE.items = q
+    ? list.map(e => [paletteScore(e, q), e]).filter(x => x[0] < 900).sort((a, b) => a[0] - b[0]).map(x => x[1]).slice(0, 8)
+    : list.slice(0, 8);
+  PALETTE.sel = Math.min(PALETTE.sel, Math.max(0, PALETTE.items.length - 1));
+  el("paletteList").innerHTML = PALETTE.items.map((e, i) => {
+    const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+    return `<button type="button" class="palette-item${i === PALETTE.sel ? " sel" : ""}" data-i="${i}">
+      <span class="pi-title">${MOOD_EMOJI[e.meta.mood] || ""} ${escapeHtml(e.meta.title || "Untitled")}</span>
+      <span class="pi-snippet">${escapeHtml(clean)}</span>
+    </button>`;
+  }).join("") || `<div class="slash-empty">no match</div>`;
+  el("paletteList").querySelectorAll(".palette-item").forEach(b => {
+    b.onclick = () => palettePick(+b.dataset.i);
+    b.onmouseenter = () => { PALETTE.sel = +b.dataset.i; renderPalette(); };
+  });
+}
+
+function palettePick(i) {
+  const e = PALETTE.items[i];
+  modalClose("paletteModal");
+  if (e) openEditor(e.id);
+}
+
+function openPalette() {
+  PALETTE.sel = 0;
+  el("paletteInput").value = "";
+  modalOpen("paletteModal");
+  renderPalette();
+}
+
+function wirePalette() {
+  el("paletteInput").addEventListener("input", () => { PALETTE.sel = 0; renderPalette(); });
+  el("paletteInput").addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); PALETTE.sel = (PALETTE.sel + 1) % Math.max(1, PALETTE.items.length); renderPalette(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); PALETTE.sel = (PALETTE.sel - 1 + PALETTE.items.length) % Math.max(1, PALETTE.items.length); renderPalette(); }
+    else if (e.key === "Enter") { e.preventDefault(); if (PALETTE.items.length) palettePick(PALETTE.sel); }
+    else if (e.key === "Escape") { e.preventDefault(); modalClose("paletteModal"); }
+  });
+  el("paletteModal").addEventListener("click", e => { if (e.target === el("paletteModal")) modalClose("paletteModal"); });
+}
+
 function toast(msg, kind) {
   const wrap = el("toasts");
   const t = document.createElement("div");
@@ -80,11 +139,63 @@ function toast(msg, kind) {
 }
 
 function modalOpen(id) {
-  el(id).classList.add("open");
+  const m = el(id);
+  m.classList.add("open");
+  m.setAttribute("aria-hidden", "false");
+  modalOpen.lastFocus = document.activeElement;
+  if (!m.dataset.trap) {
+    m.dataset.trap = "1";
+    m.addEventListener("keydown", e => {
+      if (e.key !== "Tab") return;
+      const items = m.querySelectorAll("button, input, textarea, select, a[href], [tabindex]:not([tabindex='-1'])");
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+  }
+  const f = m.querySelector("input:not([hidden]), button, [tabindex]");
+  if (f) setTimeout(() => f.focus(), 40);
 }
 
 function modalClose(id) {
-  el(id).classList.remove("open");
+  const m = el(id);
+  if (!m.classList.contains("open")) return;
+  m.classList.remove("open");
+  m.setAttribute("aria-hidden", "true");
+  if (modalOpen.lastFocus && document.contains(modalOpen.lastFocus)) {
+    try { modalOpen.lastFocus.focus(); } catch (e) {}
+  }
+}
+
+/* ── sync pill (iCloud-style status) ───────────── */
+
+const SYNC = { state: "idle", failed: [] };
+
+function setSyncPill(state, note) {
+  SYNC.state = SYNC.state === "error" && state === "ok" ? "error" : state;
+  if (state === "error") SYNC.failed.push(note);
+  if (state === "ok" && !SYNC.failed.length) SYNC.state = "idle";
+  const pill = el("syncPill");
+  if (SYNC.state === "idle") { pill.hidden = true; return; }
+  pill.hidden = false;
+  pill.className = "sync-pill " + SYNC.state;
+  pill.textContent = SYNC.state === "syncing" ? "↻ syncing…" : SYNC.state === "ok" ? "synced ✓" : "sync error — click to retry";
+}
+
+async function retrySync() {
+  if (SYNC.state !== "error") return;
+  const jobs = SYNC.failed.splice(0);
+  setSyncPill("syncing");
+  for (const job of jobs) {
+    try { await job(); } catch (err) {
+      SYNC.failed.push(job);
+      setSyncPill("error", job);
+      toast("Retry failed: " + err.message, "err");
+      return;
+    }
+  }
+  setSyncPill("ok");
 }
 
 function showScreen(name) {
@@ -353,10 +464,21 @@ function visibleEntries() {
 
 function renderList() {
   const list = visibleEntries();
+  const q = (APP.filter.query || "").trim();
+  const fTag = APP.filter.tag;
   el("listCount").textContent = list.length === 1 ? "1 note" : list.length + " notes";
   el("emptyState").hidden = !!list.length;
+  if (!list.length) {
+    if (APP.entries.length && (q || fTag)) {
+      el("emptyTitle").textContent = "No match here.";
+      el("emptyHint").textContent = "try another word — or clear the filter above.";
+    } else {
+      el("emptyTitle").textContent = "Nothing written yet.";
+      el("emptyHint").textContent = "“New page” starts your first entry — she's waiting.";
+    }
+  }
   const cur = el("editor").dataset.id;
-  el("grid").innerHTML = list.map(e => {
+  el("grid").innerHTML = list.map((e, i) => {
     const title = e.meta.title || "Untitled";
     const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " [image] ").replace(/\s+/g, " ").trim();
     const w = wordsOf(e.text || "");
@@ -365,7 +487,7 @@ function renderList() {
       ? `<span class="chip sm"><span class="dot" style="--dot:${tagColor(tags[0])}"></span>${escapeHtml(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ""}</span>`
       : "";
     const upd = e.meta.updated || e.meta.created;
-    return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}">
+    return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}" style="--i:${i}">
       <div class="nc-title">${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
       <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
       <div class="nc-meta">
@@ -577,50 +699,64 @@ function closeEditor() {
 async function saveEntry() {
   if (!APP.key) { toast("Vault is locked", "err"); return; }
   if (!requireLoaded("save")) return;
-  const btn = el("saveEntryBtn");
-  btn.disabled = true;
-  btn.textContent = "Saving…";
+  const id = el("editor").dataset.id || uid();
+  const existing = APP.entries.find(x => x.id === id);
+  const title = el("edTitle").value.trim();
+  commitTagInput();
+  const tags = [...ED_TAGS];
+  const now = new Date().toISOString();
+  const entry = {
+    id,
+    meta: {
+      title: title || "Untitled",
+      tags,
+      mood: ED_MOOD || undefined,
+      created: existing ? existing.meta.created : now,
+      updated: now,
+      images: existing ? existing.meta.images || [] : []
+    },
+    text: el("edText").value
+  };
+  const i = APP.entries.findIndex(x => x.id === id);
+  if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
+  clearDraft(id);
+  closeEditor();
+  renderAll();
+  toast(i >= 0 ? "Saved" : "Page created", "ok");
+  const prev = saveInflight.get(id) || Promise.resolve();
+  const job = prev.catch(() => {}).then(() => persistEntry(entry, existing));
+  saveInflight.set(id, job);
+  job.finally(() => { if (saveInflight.get(id) === job) saveInflight.delete(id); });
+}
+
+const saveInflight = new Map();
+
+async function persistEntry(entry, existing, isRetry) {
+  setSyncPill("syncing");
   try {
-    const id = el("editor").dataset.id || uid();
-    const existing = APP.entries.find(x => x.id === id);
-    const title = el("edTitle").value.trim();
-    commitTagInput();
-    const tags = [...ED_TAGS];
-    const now = new Date().toISOString();
-    const entry = {
-      id,
-      meta: {
-        title: title || "Untitled",
-        tags,
-        mood: ED_MOOD || undefined,
-        created: existing ? existing.meta.created : now,
-        updated: now,
-        images: existing ? existing.meta.images || [] : []
-      },
-      text: el("edText").value
-    };
     const newPath = Vault.entryPath(entry);
     await Vault.saveEncryptedPath(newPath, entry);
     if (existing && Vault.entryPath(existing) !== newPath) {
       await Vault.removeFile(Vault.entryPath(existing), "vault update");
     }
-    const i = APP.entries.findIndex(x => x.id === id);
-    if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
-    clearDraft(id);
-    closeEditor();
-    renderAll();
-    toast("Saved & synced to GitHub", "ok");
+    setSyncPill("ok");
   } catch (err) {
     Log.push({ msg: "save failed" + (err.status ? " (" + err.status + ")" : "") + ": " + err.message });
     if (err.status === 409) {
-      await handleSaveConflict(err);
+      stashDraft(entry.id);
+      const theirs = APP.entries.find(x => x.id === entry.id);
+      const mine = readStash(entry.id);
+      el("conflictInfo").textContent =
+        "yours: " + new Date(mine.at).toLocaleString() + " (" + (mine.text || "").length + " chars)" +
+        "\ntheirs: " + new Date((theirs && theirs.meta.updated) || "").toLocaleString() + " (" + ((theirs && theirs.text) || "").length + " chars)";
+      APP.entries = await safeRetryEntries();
+      renderAll();
+      setSyncPill("error", () => persistEntry(entry, existing, true));
+      openConflictModal(entry.id);
     } else {
-      toast("Save failed: " + err.message, "err");
+      setSyncPill("error", () => persistEntry(entry, existing, true));
+      toast("Save failed — kept locally. Click the sync pill to retry: " + err.message, "err");
     }
-    renderAll();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Done";
   }
 }
 
@@ -1404,8 +1540,9 @@ function wire() {
     if ((e.ctrlKey || e.metaKey) && k === "k") {
       if (e.defaultPrevented) return;
       e.preventDefault();
-      if (editorOpen && document.activeElement === el("edText")) { tbLink(); return; }
-      el("searchBox").focus();
+      if (el("paletteModal").classList.contains("open")) { modalClose("paletteModal"); return; }
+      if (editorOpen && document.activeElement === el("edText") && !e.shiftKey) { tbLink(); return; }
+      openPalette();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && (k === "s" || k === "enter")) {
@@ -1434,6 +1571,8 @@ function wire() {
     e.preventDefault();
     handleImages(files);
   });
+  wirePalette();
+  el("syncPill").onclick = retrySync;
   window.addEventListener("resize", () => {
     if (!el("editor").classList.contains("open")) return;
     const pane = el("previewPane");

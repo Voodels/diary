@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body class="dark">
 
@@ -100,6 +100,7 @@
             <input id="searchBox" type="search" placeholder="Search entries…">
           </div>
           <span class="spacer"></span>
+          <button id="syncPill" class="sync-pill" hidden title="sync status"></button>
           <div class="her-chip" title="her"><span class="her-ava" data-mini-avatar></span><span class="her-name">her</span></div>
         </header>
 
@@ -119,8 +120,9 @@
             <div class="tabs" id="tabsRow"></div>
             <div id="grid" class="grid"></div>
             <div id="emptyState" class="empty" hidden>
-              <p>Nothing written yet.</p>
-              <p class="hint">“New page” starts your first entry.</p>
+              <span class="ed-empty-ava" data-mini-avatar></span>
+              <p id="emptyTitle">Nothing written yet.</p>
+              <p class="hint" id="emptyHint">“New page” starts your first entry — she's waiting.</p>
             </div>
           </section>
 
@@ -234,6 +236,14 @@
   </div>
 </div>
 
+<div id="paletteModal" class="modal" role="dialog" aria-modal="true" aria-label="Quick jump">
+  <div class="modal-box palette-box">
+    <input id="paletteInput" type="text" placeholder="Jump to a page… (title, tag or text)" autocomplete="off" spellcheck="false">
+    <div id="paletteList" class="palette-list"></div>
+    <div class="hint palette-hint">↑↓ choose · ↵ open · esc close</div>
+  </div>
+</div>
+
 <div id="kdfModal" class="modal">
   <div class="modal-box">
     <div class="modal-head"><strong>Upgrade encryption</strong><span class="spacer"></span><button id="kdfModalCloseBtn" class="icon-btn">✕</button></div>
@@ -261,15 +271,15 @@
 
 <div id="toasts"></div>
 
-<script src="argon2/loader.js?v=12"></script>
-<script src="argon2/lib/argon2.js?v=12"></script>
-<script src="util.js?v=12"></script>
-<script src="logging.js?v=12"></script>
-<script src="crypto.js?v=12"></script>
-<script src="github.js?v=12"></script>
-<script src="markdown.js?v=12"></script>
-<script src="avatar.js?v=12"></script>
-<script src="vault.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="argon2/loader.js?v=13"></script>
+<script src="argon2/lib/argon2.js?v=13"></script>
+<script src="util.js?v=13"></script>
+<script src="logging.js?v=13"></script>
+<script src="crypto.js?v=13"></script>
+<script src="github.js?v=13"></script>
+<script src="markdown.js?v=13"></script>
+<script src="avatar.js?v=13"></script>
+<script src="vault.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
