@@ -2,6 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
+- p3 consistency sweep — tabular numerals, ok-color tokens, toast aria-live, svg-button aria-labels — 2026-10-19
 - p2 gate magic — ambient mood gradients, unlock celebration bounce, 'thinking' pacing while argon2 works — 2026-10-19
 - p1b timeline + year review + print — month-grouped timeline view, in-review stats modal, editor print/PDF action — 2026-10-19
 - p1 feel pack — optimistic saves + iCloud-style sync pill, spring modal motion, card stagger, focus traps, Cmd+K palette, contextual empty states — 2026-10-19
