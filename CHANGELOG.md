@@ -2,6 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
+- p1 feel pack — optimistic saves + iCloud-style sync pill, spring modal motion, card stagger, focus traps, Cmd+K palette, contextual empty states — 2026-10-19
 - ui: diary delights — writing streak, on-this-day resurface, mood chips + recent-mood strip — 2026-10-19
 - ci: fix lighthouse summary step — use action outputs instead of fragile glob — 2026-10-19
 - ci: lighthouse weekly audits + auto-changelog + dependabot (actions) — 2026-10-19
