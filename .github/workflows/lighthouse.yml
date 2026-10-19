@@ -27,8 +27,6 @@ jobs:
         shell: bash
         run: |
           echo "## Lighthouse — live site" >> "$GITHUB_STEP_SUMMARY"
-          for f in lighthouse-results/lighthouse-report-*.json; do
-            [ -e "$f" ] || f=$(find lighthouse-results -name "*.json" | head -1)
-            [ -e "$f" ] || continue
-            jq -r '.categories | to_entries[] | "- \( .key ): \( (.value.score * 100) | round )/100"' "$f" >> "$GITHUB_STEP_SUMMARY" || true
-          done
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          echo '${{ steps.lh.outputs.scores }}' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
