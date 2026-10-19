@@ -2,8 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
-- v19 apple notes date buckets & notion flow — auto-expanding editor document flow, Apple Notes date groupings (Today, Yesterday, Previous 7 Days, Previous 30 Days), Notion-style inline properties bar under title, keyboard shortcut matrix cheatsheet on empty state, glowing glass unlock pill with submit arrow — 2026-10-19
-- v18 apple & notion overhaul — typography switcher (Sans/Serif/Mono), pinned notes (Cmd+P + top section), edge-to-edge canvas, collapsible sidebar (Cmd+\), floating selection toolbar, real-time debounced autosync with status pill, interactive checklist task toggling, arrow-key note navigation, Inter + SF Pro design system — 2026-10-19
+- v19: Apple Notes & Notion UI overhaul (typography switcher, pinned notes, collapsible sidebar, date grouping, auto-expanding editor) — 2026-10-19
 - trigger pages rebuild (edge cache was serving stale deploy) — 2026-10-19
 - fix image pipeline — healed refs in card/snippet snippets, cursor-position paste/insert, per-id fetch dedupe + fail-stop (no more lag), double-create guard, live rerender after fetch — 2026-10-19
 - p3 consistency sweep — tabular numerals, ok-color tokens, toast aria-live, svg-button aria-labels — 2026-10-19
