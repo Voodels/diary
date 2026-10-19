@@ -2,6 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
+- trigger pages rebuild (edge cache was serving stale deploy) — 2026-10-19
 - fix image pipeline — healed refs in card/snippet snippets, cursor-position paste/insert, per-id fetch dedupe + fail-stop (no more lag), double-create guard, live rerender after fetch — 2026-10-19
 - p3 consistency sweep — tabular numerals, ok-color tokens, toast aria-live, svg-button aria-labels — 2026-10-19
 - p2 gate magic — ambient mood gradients, unlock celebration bounce, 'thinking' pacing while argon2 works — 2026-10-19
