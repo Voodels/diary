@@ -285,6 +285,9 @@ async function unlockAttempt() {
   if (!pass) { gateWrong(""); return; }
   APP.gate.busy = true;
   el("lockMsg").textContent = "";
+  el("lockMsg").classList.add("lock-thinking");
+  el("lockMsg").textContent = "thinking";
+  const unthink = () => { el("lockMsg").classList.remove("lock-thinking"); if (el("lockMsg").textContent === "thinking…") el("lockMsg").textContent = ""; };
   try {
     const hint = deriveRepoFromLocation();
     if (hint) {
@@ -308,6 +311,8 @@ async function unlockAttempt() {
       const { key } = await Vault.unlockWithMeta(pass, meta);
       APP.gate.stage = 3;
       Moods.setMood("gloat");
+      el("avatarHost").classList.add("celebrate");
+      setTimeout(() => el("avatarHost").classList.remove("celebrate"), 800);
       setTimeout(() => afterUnlock(key, meta, hint), 550);
       return;
     }
@@ -316,6 +321,8 @@ async function unlockAttempt() {
       const { key, meta } = await Vault.unlock(pass);
       APP.gate.stage = 3;
       Moods.setMood("gloat");
+      el("avatarHost").classList.add("celebrate");
+      setTimeout(() => el("avatarHost").classList.remove("celebrate"), 800);
       setTimeout(() => afterUnlock(key, meta), 550);
     } else {
       el("lockMsg").textContent = "Vault unreachable from this address.";
@@ -334,6 +341,7 @@ async function unlockAttempt() {
       gateWrong(err.message === "Wrong password" ? "" : err.message);
     }
   } finally {
+    unthink();
     APP.gate.busy = false;
   }
 }

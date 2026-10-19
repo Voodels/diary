@@ -932,6 +932,45 @@ body:not(.dark) .modal { background: rgba(42, 36, 48, 0.35); }
 .sync-pill.error { color: var(--danger); border-color: var(--danger); animation: pillPulse 1.4s ease infinite; }
 @keyframes pillPulse { 50% { opacity: 0.65; } }
 
+/* ── ambient mood (body reacts to her expression) ─ */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.9s ease, background 0.9s ease;
+  background: radial-gradient(60% 50% at 50% 0%, var(--ambient, transparent), transparent 70%);
+}
+body[data-mood="curious"]::before { --ambient: rgba(64, 120, 200, 0.09); opacity: 1; }
+body[data-mood="shy"]::before { --ambient: rgba(255, 140, 180, 0.10); opacity: 1; }
+body[data-mood="love"]::before, body[data-mood="gloat"]::before { --ambient: rgba(255, 100, 150, 0.13); opacity: 1; }
+body[data-mood="pout"]::before,
+body[data-mood="tease"]::before { --ambient: rgba(200, 90, 120, 0.08); opacity: 1; }
+body[data-mood="silent"]::before { --ambient: rgba(120, 120, 140, 0.09); opacity: 1; }
+body[data-mood="fire"]::before { --ambient: rgba(240, 120, 60, 0.10); opacity: 1; }
+body[data-mood="sparkle"]::before { --ambient: rgba(240, 200, 90, 0.11); opacity: 1; }
+body[data-mood="soft"]::before { --ambient: rgba(255, 150, 190, 0.10); opacity: 1; }
+body[data-mood="calm"]::before { --ambient: rgba(110, 190, 160, 0.10); opacity: 1; }
+body[data-mood="sleepy"]::before { --ambient: rgba(130, 130, 220, 0.10); opacity: 1; }
+body[data-mood="sad"]::before { --ambient: rgba(90, 110, 190, 0.10); opacity: 1; }
+body[data-mood="storm"]::before { --ambient: rgba(100, 100, 130, 0.12); opacity: 1; }
+
+/* ── unlock choreography ────────────────────────── */
+
+.avatarHost.celebrate { animation: celebrate 0.7s cubic-bezier(0.3, 1.4, 0.4, 1) both; }
+@keyframes celebrate {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.08) rotate(2deg); }
+  70% { transform: scale(0.98) rotate(-1.5deg); }
+  100% { transform: scale(1); }
+}
+.lock-thinking { opacity: 0.75; }
+.lock-thinking::after { content: "…"; animation: thinkDots 1.4s steps(4) infinite; }
+@keyframes thinkDots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
 /* ── quick jump palette ─────────────────────────── */
 
 .palette-box { max-width: 520px; }

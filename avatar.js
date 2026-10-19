@@ -125,6 +125,7 @@ const Moods = (() => {
     if (!MOODS[name]) name = "idle";
     current = name;
     host.dataset.mood = name;
+    document.body.dataset.mood = name;
     host.querySelectorAll("g.face").forEach(g => {
       g.classList.toggle("active", g.dataset.face === nameToFace(name));
     });
