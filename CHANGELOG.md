@@ -2,6 +2,7 @@
 
 _Auto-generated from git history; maintained by CI._
 
+- ui: diary delights — writing streak, on-this-day resurface, mood chips + recent-mood strip — 2026-10-19
 - ci: fix lighthouse summary step — use action outputs instead of fragile glob — 2026-10-19
 - ci: lighthouse weekly audits + auto-changelog + dependabot (actions) — 2026-10-19
 - docs: README — setup, threat model, kdf upgrade behavior — 2026-10-19
