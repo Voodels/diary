@@ -947,6 +947,66 @@ body:not(.dark) .modal { background: rgba(42, 36, 48, 0.35); }
 .pi-snippet { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-hint { text-align: center; margin-top: 8px; user-select: none; }
 
+/* ── timeline view ──────────────────────────────── */
+
+#grid.timeline { display: block; }
+.tl-month { margin-bottom: 18px; }
+.tl-head {
+  font-family: "Fraunces", Georgia, serif; font-size: 14px; font-weight: 600;
+  color: var(--muted); letter-spacing: 0.03em;
+  padding: 6px 4px 4px; margin-bottom: 6px;
+  border-bottom: 1px dashed var(--line);
+  position: sticky; top: 0; z-index: 2;
+  background: var(--bg);
+  animation: cardIn 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 20ms);
+}
+
+/* ── year in review ─────────────────────────────── */
+
+.review-box { max-width: 480px; }
+.review-years { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
+.review-years .chip.sm { cursor: pointer; }
+.review-years .chip.sm.sel { border-color: var(--rose); color: var(--rose); }
+.rv-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+.rv-stat { flex: 1; text-align: center; padding: 12px 6px; background: var(--bg-soft); border-radius: 12px; display: flex; flex-direction: column; gap: 2px; }
+.rv-num { font-family: "Fraunces", Georgia, serif; font-size: 26px; font-weight: 600; }
+.rv-lbl { font-size: 12px; color: var(--muted); }
+.rv-months { display: flex; gap: 5px; align-items: flex-end; height: 64px; margin-bottom: 12px; }
+.rv-month { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.rv-month i { display: block; width: 100%; background: var(--rose); border-radius: 4px 4px 2px 2px; min-height: 2px; opacity: 0.8; }
+.rv-month em { font-style: normal; font-size: 10px; color: var(--muted); min-height: 12px; }
+.rv-moods { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.rv-mood { font-size: 18px; }
+.rv-mood em { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 2px; }
+.rv-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.rv-tags em, .review-years em { font-style: normal; color: var(--muted); font-size: 11px; margin-left: 3px; }
+.rv-longest { margin-bottom: 10px; font-size: 13.5px; }
+.rv-note { text-align: center; }
+.chip.sm.sel { border-color: var(--rose); color: var(--rose); }
+
+/* ── print / PDF ────────────────────────────────── */
+
+.print-editor #listPane,
+.print-editor #topbar,
+.print-editor .ed-toolbar,
+.print-editor .ed-side,
+.print-editor #previewPane,
+.print-editor #toasts,
+.print-editor .nc-del { display: none !important; }
+.print-editor #editor { position: static !important; width: 100% !important; display: block !important; }
+.print-editor #editor .ed-main { max-width: 700px; margin: 0 auto; }
+.print-editor #edText { display: none; }
+.print-editor #previewPane.live { display: block !important; position: static !important; }
+.print-editor .ed-title,
+.print-editor .preview,
+.print-editor .ed-images img { max-width: 100%; }
+.print-editor { background: #fff; color: #000; }
+@media print {
+  body, .modal, #editor { background: #fff !important; }
+  .ed-title, .preview, .ed-images img { color: #000; }
+}
+
 /* ── slash menu ─────────────────────────────────── */
 
 .slash-menu { position: fixed; z-index: 60; width: 268px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35); padding: 6px; }

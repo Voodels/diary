@@ -5,6 +5,7 @@ const APP = {
   meta: null,
   loadedOK: false,
   filter: { search: "", tag: null, sort: "new" },
+  view: localStorage.getItem("ediary_view") === "timeline" ? "timeline" : "cards",
   autoLockTimer: null,
   gate: {
     stage: 0,
@@ -116,6 +117,51 @@ function openPalette() {
   el("paletteInput").value = "";
   modalOpen("paletteModal");
   renderPalette();
+}
+
+/* ── year in review ─────────────────────────────── */
+
+function reviewYears() {
+  const set = new Set(APP.entries.map(e => new Date(e.meta.created || e.meta.updated || Date.now()).getFullYear()));
+  return [...set].sort((a, b) => b - a).filter(Number.isFinite);
+}
+
+function openReview(year) {
+  const years = reviewYears();
+  if (!years.length) { toast("No pages yet — write first!", "err"); return; }
+  const y = years.includes(year) ? year : years[0];
+  const inYear = APP.entries.filter(e => new Date(e.meta.created || e.meta.updated).getFullYear() === y);
+  const words = inYear.reduce((n, e) => n + wordsOf(e.text || ""), 0);
+  const photos = inYear.reduce((n, e) => n + (e.meta.images || []).length, 0);
+  const moodCounts = {};
+  for (const e of inYear) if (e.meta.mood && MOOD_EMOJI[e.meta.mood]) moodCounts[e.meta.mood] = (moodCounts[e.meta.mood] || 0) + 1;
+  const tagCounts = {};
+  for (const e of inYear) for (const t of e.meta.tags || []) tagCounts[t] = (tagCounts[t] || 0) + 1;
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const longest = inYear.slice().sort((a, b) => wordsOf(b.text || "") - wordsOf(a.text || ""))[0];
+  const monthBuckets = Array(12).fill(0);
+  for (const e of inYear) monthBuckets[new Date(e.meta.created || e.meta.updated).getMonth()]++;
+  const maxM = Math.max(1, ...monthBuckets);
+  el("reviewTitle").textContent = y + " in review";
+  el("reviewYearRow").innerHTML = years.map(yy =>
+    `<button type="button" class="chip sm${yy === y ? " sel" : ""}" data-y="${yy}">${yy}</button>`).join("");
+  el("reviewYearRow").querySelectorAll("button[data-y]").forEach(b => {
+    b.onclick = () => openReview(+b.dataset.y);
+  });
+  el("reviewBody").innerHTML = `
+    <div class="rv-stats">
+      <div class="rv-stat"><span class="rv-num">${inYear.length}</span><span class="rv-lbl">${inYear.length === 1 ? "page" : "pages"}</span></div>
+      <div class="rv-stat"><span class="rv-num">${words.toLocaleString()}</span><span class="rv-lbl">words</span></div>
+      <div class="rv-stat"><span class="rv-num">${photos}</span><span class="rv-lbl">${photos === 1 ? "photo" : "photos"}</span></div>
+    </div>
+    <div class="rv-months">${monthBuckets.map((n, m) =>
+      `<span class="rv-month" title="${new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" })}: ${n}"><i style="height:${Math.round(n / maxM * 100)}%; ${n ? "" : "opacity:.25"}"></i><em>${n || ""}</em></span>`).join("")}</div>
+    ${Object.keys(moodCounts).length ? `<div class="rv-moods">${Object.entries(moodCounts).sort((a, b) => b[1] - a[1]).map(([m, n]) =>
+      `<span class="rv-mood">${MOOD_EMOJI[m]}<em>${n}</em></span>`).join("")}</div>` : ""}
+    ${topTags.length ? `<div class="rv-tags">${topTags.map(([t, n]) => `<span class="chip sm"><span class="dot" style="--dot:${tagColor(t)}"></span>${escapeHtml(t)} <em>${n}</em></span>`).join("")}</div>` : ""}
+    ${longest ? `<div class="rv-longest">longest entry: <b>${escapeHtml(longest.meta.title || "Untitled")}</b> (${wordsOf(longest.text || "").toLocaleString()} words)</div>` : ""}
+    <div class="hint rv-note">that's ${words ? Math.round(words / inYear.length) : 0} words per page, on average. nice.</div>`;
+  modalOpen("reviewModal");
 }
 
 function wirePalette() {
@@ -462,6 +508,31 @@ function visibleEntries() {
   });
 }
 
+function noteCardHtml(e, cur, i) {
+  const title = e.meta.title || "Untitled";
+  const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " [image] ").replace(/\s+/g, " ").trim();
+  const w = wordsOf(e.text || "");
+  const tags = e.meta.tags || [];
+  const tagChip = tags.length
+    ? `<span class="chip sm"><span class="dot" style="--dot:${tagColor(tags[0])}"></span>${escapeHtml(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ""}</span>`
+    : "";
+  const upd = e.meta.updated || e.meta.created;
+  return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}" style="--i:${i}">
+    <div class="nc-title">${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
+    <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
+    <div class="nc-meta">
+      <span class="nc-w">${w === 1 ? "1 word" : w + " words"}</span>
+      ${tagChip}
+      <span class="nc-time">${escapeHtml(fmtClock(upd))}</span>
+    </div>
+    <button class="nc-del icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button>
+  </div>`;
+}
+
+function monthLabel(d) {
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
 function renderList() {
   const list = visibleEntries();
   const q = (APP.filter.query || "").trim();
@@ -477,27 +548,27 @@ function renderList() {
       el("emptyHint").textContent = "“New page” starts your first entry — she's waiting.";
     }
   }
+  el("viewToggle").textContent = APP.view === "timeline" ? "Cards" : "Timeline";
   const cur = el("editor").dataset.id;
-  el("grid").innerHTML = list.map((e, i) => {
-    const title = e.meta.title || "Untitled";
-    const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " [image] ").replace(/\s+/g, " ").trim();
-    const w = wordsOf(e.text || "");
-    const tags = e.meta.tags || [];
-    const tagChip = tags.length
-      ? `<span class="chip sm"><span class="dot" style="--dot:${tagColor(tags[0])}"></span>${escapeHtml(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ""}</span>`
-      : "";
-    const upd = e.meta.updated || e.meta.created;
-    return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}" style="--i:${i}">
-      <div class="nc-title">${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
-      <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
-      <div class="nc-meta">
-        <span class="nc-w">${w === 1 ? "1 word" : w + " words"}</span>
-        ${tagChip}
-        <span class="nc-time">${escapeHtml(fmtClock(upd))}</span>
-      </div>
-      <button class="nc-del icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button>
-    </div>`;
-  }).join("");
+  if (APP.view === "timeline") {
+    const groups = new Map();
+    for (const e of list) {
+      const d = new Date(e.meta.created || e.meta.updated || Date.now());
+      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    }
+    let i = 0;
+    el("grid").classList.add("timeline");
+    el("grid").innerHTML = [...groups.entries()].map(([key, items]) => {
+      const label = monthLabel(new Date(+key.slice(0, 4), +key.slice(5) - 1, 1));
+      return `<div class="tl-month"><div class="tl-head" style="--i:${i++}">${escapeHtml(label)} <span class="muted">${items.length}</span></div>` +
+        items.map(e => noteCardHtml(e, cur, i++)).join("") + `</div>`;
+    }).join("");
+  } else {
+    el("grid").classList.remove("timeline");
+    el("grid").innerHTML = list.map((e, i) => noteCardHtml(e, cur, i)).join("");
+  }
   el("grid").querySelectorAll(".note-card").forEach(c => {
     c.onclick = ev => {
       if (ev.target.closest("[data-act=del]")) return;
@@ -960,7 +1031,14 @@ function tbAction(act) {
     case "img": el("imageInput").click(); break;
     case "import": el("importInput").click(); break;
     case "export": exportEntryMd(); break;
+    case "print": printEntry(); break;
   }
+}
+
+function printEntry() {
+  document.body.classList.add("print-editor");
+  window.print();
+  setTimeout(() => document.body.classList.remove("print-editor"), 500);
 }
 
 function tbCodeBlock() {
@@ -1573,6 +1651,14 @@ function wire() {
   });
   wirePalette();
   el("syncPill").onclick = retrySync;
+  el("viewToggle").onclick = () => {
+    APP.view = APP.view === "timeline" ? "cards" : "timeline";
+    localStorage.setItem("ediary_view", APP.view);
+    renderList();
+  };
+  el("reviewBtn").onclick = () => openReview();
+  el("reviewCloseBtn").onclick = () => modalClose("reviewModal");
+  el("reviewModal").addEventListener("click", e => { if (e.target === el("reviewModal")) modalClose("reviewModal"); });
   window.addEventListener("resize", () => {
     if (!el("editor").classList.contains("open")) return;
     const pane = el("previewPane");

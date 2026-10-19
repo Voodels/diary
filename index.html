@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body class="dark">
 
@@ -108,6 +108,9 @@
           <section class="list-pane">
             <div class="list-head">
               <h2>Notes</h2>
+              <span class="spacer"></span>
+              <button id="reviewBtn" class="btn soft sm" title="Year in review">✨ review</button>
+              <button id="viewToggle" class="btn soft sm" title="Switch view">Timeline</button>
               <button id="listNewBtn" class="btn soft sm">+ New</button>
             </div>
             <div id="onThisDay" class="otd" hidden></div>
@@ -178,6 +181,9 @@
                 <button class="tb-btn" data-act="import" title="Import .md file">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 </button>
+                <button class="tb-btn" data-act="print" title="Print / PDF">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </button>
                 <button class="tb-btn" data-act="export" title="Export as .md">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
@@ -236,6 +242,14 @@
   </div>
 </div>
 
+<div id="reviewModal" class="modal" role="dialog" aria-modal="true" aria-label="Year in review">
+  <div class="modal-box review-box">
+    <div class="modal-head"><strong id="reviewTitle">Year in review</strong><span class="spacer"></span><button id="reviewCloseBtn" class="icon-btn">✕</button></div>
+    <div id="reviewYearRow" class="review-years"></div>
+    <div id="reviewBody" class="review-body"></div>
+  </div>
+</div>
+
 <div id="paletteModal" class="modal" role="dialog" aria-modal="true" aria-label="Quick jump">
   <div class="modal-box palette-box">
     <input id="paletteInput" type="text" placeholder="Jump to a page… (title, tag or text)" autocomplete="off" spellcheck="false">
@@ -271,15 +285,15 @@
 
 <div id="toasts"></div>
 
-<script src="argon2/loader.js?v=13"></script>
-<script src="argon2/lib/argon2.js?v=13"></script>
-<script src="util.js?v=13"></script>
-<script src="logging.js?v=13"></script>
-<script src="crypto.js?v=13"></script>
-<script src="github.js?v=13"></script>
-<script src="markdown.js?v=13"></script>
-<script src="avatar.js?v=13"></script>
-<script src="vault.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="argon2/loader.js?v=14"></script>
+<script src="argon2/lib/argon2.js?v=14"></script>
+<script src="util.js?v=14"></script>
+<script src="logging.js?v=14"></script>
+<script src="crypto.js?v=14"></script>
+<script src="github.js?v=14"></script>
+<script src="markdown.js?v=14"></script>
+<script src="avatar.js?v=14"></script>
+<script src="vault.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
