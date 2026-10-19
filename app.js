@@ -415,6 +415,7 @@ async function tryLoadEntries() {
     el("loadingMsg").classList.remove("err", "clickable");
     el("loadingMsg").onclick = null;
     resetIdleTimer();
+    healImageRefs();
   } catch (err) {
     APP.loadedOK = false;
     Log.push({ msg: "entries load failed: " + err.message });
@@ -516,9 +517,63 @@ function visibleEntries() {
   });
 }
 
+/* ── image ref healing (truncated refs in old text) ── */
+
+let VAULT_IMAGE_IDS = null;
+
+async function getVaultImageIds() {
+  if (VAULT_IMAGE_IDS) return VAULT_IMAGE_IDS;
+  const files = await ghListVaultFiles(VAULT_PATHS.images, "diary-vault");
+  VAULT_IMAGE_IDS = files.map(f => f.replace(/\.bin$/, ""));
+  return VAULT_IMAGE_IDS;
+}
+
+function healText(text, ids) {
+  const idsSet = new Set(ids);
+  let changed = false;
+  let out = String(text).replace(/!\[([^\]]*)\]\(image:([A-Za-z0-9-]+)/g, (whole, name, id) => {
+    if (idsSet.has(id)) return whole;
+    const hits = ids.filter(x => x.startsWith(id) && x.length - id.length <= 6);
+    if (hits.length === 1) { changed = true; return `![${name}](image:${hits[0]})`; }
+    return whole;
+  });
+  out = out.replace(/[ \t]*\(?image:[A-Za-z0-9-]{4,}\)[ \t]*\n?$/g, m => { changed = true; return "\n"; });
+  return { text: out, changed };
+}
+
+async function healImageRefs() {
+  if (!requireLoaded("heal")) return;
+  try {
+    const ids = await getVaultImageIds();
+    for (const e of APP.entries) {
+      if (!/\(image:/.test(e.text || "")) continue;
+      const r = healText(e.text, ids);
+      if (r.changed) {
+        const old = e.id.split("-").slice(0, 2).join("-");
+        e.text = r.text;
+        e.meta.updated = new Date().toISOString();
+        const prev = saveInflight.get(e.id) || Promise.resolve();
+        const job = prev.catch(() => {}).then(() => persistEntry(e, APP.entries.find(x => x.id === e.id)));
+        saveInflight.set(e.id, job);
+        job.finally(() => { if (saveInflight.get(e.id) === job) saveInflight.delete(e.id); });
+      }
+    }
+  } catch (err) {
+    Log.push({ msg: "image heal skipped: " + err.message });
+  }
+}
+
+function snippetOf(text) {
+  let t = String(text || "");
+  t = t.replace(/!\[[^\]]*\]\(image:[^)\s]+\)/g, " [image] ");
+  t = t.replace(/[ \t]*!?\[[^\]]*\]?\(image:[A-Za-z0-9-]*[ \t]*/g, " [image] ");
+  t = t.replace(/\(?image:[A-Za-z0-9-]+/g, "");
+  return t.replace(/\s+/g, " ").trim();
+}
+
 function noteCardHtml(e, cur, i) {
   const title = e.meta.title || "Untitled";
-  const clean = (e.text || "").replace(/!\[[^\]]*\]\(image:[^)]+\)/g, " [image] ").replace(/\s+/g, " ").trim();
+  const clean = snippetOf(e.text);
   const w = wordsOf(e.text || "");
   const tags = e.meta.tags || [];
   const tagChip = tags.length
@@ -778,6 +833,7 @@ function closeEditor() {
 async function saveEntry() {
   if (!APP.key) { toast("Vault is locked", "err"); return; }
   if (!requireLoaded("save")) return;
+  if (!el("editor").classList.contains("open")) return;
   const id = el("editor").dataset.id || uid();
   const existing = APP.entries.find(x => x.id === id);
   const title = el("edTitle").value.trim();
@@ -1133,26 +1189,51 @@ function sniffMime(b) {
 }
 
 const IMG_CACHE = new Map();
+const IMG_FAILED = new Map();
+const IMG_INFLIGHT = new Map();
+
+async function fetchImageUrl(id) {
+  const cached = IMG_CACHE.get(id);
+  if (cached) return cached;
+  const failed = IMG_FAILED.get(id);
+  if (failed) throw failed;
+  const inflight = IMG_INFLIGHT.get(id);
+  if (inflight) return inflight;
+  const job = (async () => {
+    try {
+      const buf = await Vault.readEntryImage(id, APP.key);
+      const mime = sniffMime(new Uint8Array(buf));
+      const url = URL.createObjectURL(new Blob([buf], { type: mime }));
+      IMG_CACHE.set(id, url);
+      IMG_FAILED.delete(id);
+      clearTimeout(window.__imgReT);
+      window.__imgReT = setTimeout(() => { if (el("editor").classList.contains("open") && !el("previewPane").hidden) renderPreviewLive(); }, 60);
+      return url;
+    } catch (err) {
+      IMG_FAILED.set(id, err);
+      throw err;
+    } finally {
+      IMG_INFLIGHT.delete(id);
+    }
+  })();
+  IMG_INFLIGHT.set(id, job);
+  return job;
+}
 
 async function resolveImages(pane) {
   const slots = pane.querySelectorAll(".img-slot");
   for (const s of slots) {
     const id = s.dataset.imageId;
     try {
-      let url = IMG_CACHE.get(id);
-      if (!url) {
-        const buf = await Vault.readEntryImage(id, APP.key);
-        const mime = sniffMime(new Uint8Array(buf));
-        url = URL.createObjectURL(new Blob([buf], { type: mime }));
-        IMG_CACHE.set(id, url);
-      }
+      const url = await fetchImageUrl(id);
       const img = document.createElement("img");
       img.className = "entry-img";
       img.src = url;
       img.alt = s.dataset.name || "encrypted image";
+      img.loading = "lazy";
       s.replaceWith(img);
     } catch (err) {
-      s.textContent = "image unavailable" + (err && err.message ? ": " + err.message : "");
+      s.textContent = "image unavailable";
       s.classList.add("err");
       Log.push({ msg: "image render failed " + (id || "") + ": " + (err && err.message) });
     }
@@ -1199,6 +1280,19 @@ async function maybeDownscale(file) {
   }
 }
 
+function insertAtCursor(text) {
+  const ta = el("edText");
+  const s = ta.selectionStart, e2 = ta.selectionEnd, v = ta.value;
+  const pre = s > 0 && v[s - 1] !== "\n" ? "\n" : "";
+  const post = v[e2] && v[e2] !== "\n" ? "\n" : "";
+  const ins = pre + text + post;
+  ta.value = v.slice(0, s) + ins + v.slice(e2);
+  const pos = s + ins.length;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  afterEdit();
+}
+
 async function handleImages(files) {
   if (!requireLoaded("image upload")) return;
   const list = files.filter(f => f.type.startsWith("image/"));
@@ -1214,15 +1308,14 @@ async function handleImages(files) {
       const name = /^image\.\w+$/i.test(f.name || "") ? "pasted image" : (f.name || "image");
       const imageId = uid();
       await Vault.putImage(imageId, encPayload);
-      el("edText").value += `\n![${name}](image:${imageId})\n`;
+      insertAtCursor(`![${name}](image:${imageId})`);
       toast(`Image ${n}/${list.length} uploaded${down.buf ? " (resized " + down.note + ")" : ""}: ${name}`, "ok");
       saveDraftSoon();
     } catch (err) {
       Log.push({ msg: "image upload failed (" + f.name + "): " + err.message });
-      toast("Image upload failed: " + err.message, "err");
+      toast("Image upload failed — nothing inserted. Try again: " + err.message, "err");
     }
   }
-  afterEdit();
 }
 
 async function doCreateVault() {
