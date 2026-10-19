@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Inter:wght@300;400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body class="dark">
 
@@ -122,15 +122,29 @@
             <div class="list-head">
               <h2>Notes</h2>
               <span class="spacer"></span>
-              <button id="reviewBtn" class="btn soft sm" title="Year in review">✨ review</button>
-              <button id="viewToggle" class="btn soft sm" title="Switch view">Timeline</button>
-              <button id="listNewBtn" class="btn soft sm">+ New</button>
+              <div class="list-actions">
+                <button id="reviewBtn" class="pill-btn" title="Year in review" aria-label="Year in review">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>
+                  <span>Review</span>
+                </button>
+                <button id="viewToggle" class="pill-btn" title="Switch view" aria-label="Switch view">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+                  <span>Timeline</span>
+                </button>
+                <button id="listNewBtn" class="pill-btn primary" title="New Note (⌘N)" aria-label="New Note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>New</span>
+                </button>
+              </div>
             </div>
             <div id="onThisDay" class="otd" hidden></div>
             <div class="list-meta">
               <span class="muted" id="listCount">0 notes</span>
               <span id="moodStrip" class="mood-strip" title="recent moods"></span>
-              <button id="sortBtn" class="mono-btn">Newest first</button>
+              <button id="sortBtn" class="sort-pill" title="Toggle sort order" aria-label="Toggle sort order">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+                <span>Newest first</span>
+              </button>
             </div>
             <div id="streakCard" class="streak-card" hidden></div>
             <div class="tabs" id="tabsRow"></div>
@@ -172,11 +186,11 @@
                   <button type="button" class="font-btn" data-font="mono">Mono</button>
                 </div>
                 <span id="edEdited" class="muted"></span>
-                <button id="previewBtn" class="btn ghost">Preview</button>
+                <button id="previewBtn" class="pill-btn ghost">Preview</button>
                 <button id="closeEditorBtn" class="icon-btn" title="Close" aria-label="Close">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
-                <button id="saveEntryBtn" class="btn primary">Done</button>
+                <button id="saveEntryBtn" class="pill-btn primary">Done</button>
               </div>
               <div class="ed-toolbar" id="edToolbar">
                 <button class="tb-btn" data-act="h1" title="Heading 1 (Ctrl+Alt+1)">H1</button>
@@ -322,15 +336,15 @@
 
 <div id="toasts" aria-live="polite"></div>
 
-<script src="argon2/loader.js?v=19"></script>
-<script src="argon2/lib/argon2.js?v=19"></script>
-<script src="util.js?v=19"></script>
-<script src="logging.js?v=19"></script>
-<script src="crypto.js?v=19"></script>
-<script src="github.js?v=19"></script>
-<script src="markdown.js?v=19"></script>
-<script src="avatar.js?v=19"></script>
-<script src="vault.js?v=19"></script>
-<script src="app.js?v=19"></script>
+<script src="argon2/loader.js?v=20"></script>
+<script src="argon2/lib/argon2.js?v=20"></script>
+<script src="util.js?v=20"></script>
+<script src="logging.js?v=20"></script>
+<script src="crypto.js?v=20"></script>
+<script src="github.js?v=20"></script>
+<script src="markdown.js?v=20"></script>
+<script src="avatar.js?v=20"></script>
+<script src="vault.js?v=20"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

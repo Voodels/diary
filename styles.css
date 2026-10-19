@@ -196,14 +196,15 @@ label {
 }
 
 .btn {
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   font-family: var(--font-sans);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  padding: 6px 14px;
+  padding: 0 14px;
   border-radius: 8px;
   border: 1px solid var(--line-strong);
   background: var(--card);
@@ -211,6 +212,9 @@ label {
   cursor: pointer;
   transition: all 0.15s var(--ease);
   box-shadow: var(--shadow-xs);
+  box-sizing: border-box;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .btn:hover {
@@ -260,26 +264,126 @@ label {
 }
 
 .btn.sm {
-  padding: 4px 10px;
-  font-size: 12.5px;
-  border-radius: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 7px;
 }
 
 .btn.full {
   width: 100%;
 }
 
+/* ── Apple-Grade Pill Button System (Headers & Toolbars) ── */
+
+.pill-btn {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--card);
+  color: var(--fg);
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all 0.15s var(--ease);
+  box-sizing: border-box;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pill-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.pill-btn:hover {
+  background: var(--card-hover);
+  border-color: var(--line-strong);
+  color: var(--fg-strong);
+}
+
+.pill-btn:hover svg {
+  color: var(--fg-strong);
+}
+
+.pill-btn:active {
+  transform: scale(0.97);
+}
+
+.pill-btn.primary {
+  background: var(--rose);
+  border-color: var(--rose);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(224, 83, 136, 0.35);
+}
+
+.pill-btn.primary svg {
+  color: #ffffff;
+}
+
+.pill-btn.primary:hover {
+  background: var(--rose-strong);
+  border-color: var(--rose-strong);
+  color: #ffffff;
+}
+
+.pill-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.pill-btn.ghost:hover {
+  background: var(--card-hover);
+  color: var(--fg);
+}
+
+.pill-btn.soft {
+  background: var(--rose-soft);
+  border-color: transparent;
+  color: var(--rose);
+  box-shadow: none;
+}
+
+.pill-btn.soft:hover {
+  background: var(--rose);
+  color: #ffffff;
+}
+
+/* ── Standardized Icon Buttons ───────────────────────────── */
+
 .icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--muted);
-  padding: 6px;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s var(--ease);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .icon-btn:hover {
@@ -433,19 +537,23 @@ label {
 .side-new {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin: 4px 12px 8px;
-  padding: 8px 12px;
+  margin: 6px 14px 10px;
+  height: 32px;
+  padding: 0 12px;
   border: 1px solid var(--line-strong);
   background: var(--card);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   border-radius: 8px;
   box-shadow: var(--shadow-xs);
+  box-sizing: border-box;
   transition: all 0.15s var(--ease);
+  user-select: none;
 }
 
 .side-new:hover {
@@ -454,9 +562,13 @@ label {
   color: var(--rose);
 }
 
+.side-new:active {
+  transform: scale(0.98);
+}
+
 .side-new svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
 .side-scroll {
@@ -746,15 +858,24 @@ label {
 .list-head {
   display: flex;
   align-items: center;
-  padding: 12px 16px 8px;
+  justify-content: space-between;
+  padding: 14px 16px 8px;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .list-head h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   margin: 0;
+  color: var(--fg-strong);
+}
+
+.list-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .list-meta {
@@ -762,22 +883,41 @@ label {
   align-items: center;
   padding: 0 16px 8px;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
-.mono-btn {
+#listCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.sort-pill {
   margin-left: auto;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
   border: none;
   background: transparent;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
-  cursor: pointer;
-  padding: 2px 6px;
+  font-weight: 500;
   border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s var(--ease);
 }
 
-.mono-btn:hover {
+.sort-pill svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.sort-pill:hover {
   color: var(--fg);
   background: var(--bg-subtle);
 }
@@ -932,21 +1072,28 @@ label {
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: 7px;
+  height: 28px;
   padding: 2px;
   gap: 2px;
+  box-sizing: border-box;
 }
 
 .font-btn {
+  height: 22px;
   border: none;
   background: transparent;
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: 11.5px;
   font-weight: 500;
-  padding: 2px 7px;
+  padding: 0 8px;
   border-radius: 5px;
   cursor: pointer;
   transition: all 0.12s var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .font-btn:hover {
@@ -1136,11 +1283,12 @@ label {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 24px;
+  padding: 0 20px;
   border-bottom: 1px solid var(--line);
   background: var(--editor-bg);
   flex-shrink: 0;
   height: 48px;
+  box-sizing: border-box;
 }
 
 .crumb {

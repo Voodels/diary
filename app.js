@@ -637,7 +637,13 @@ function renderList() {
       el("emptyHint").textContent = "“New page” starts your first entry — she's waiting.";
     }
   }
-  el("viewToggle").textContent = APP.view === "timeline" ? "Cards" : "Timeline";
+  const vt = el("viewToggle");
+  if (vt) {
+    const isTl = APP.view === "timeline";
+    vt.innerHTML = isTl
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg><span>Cards</span>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span>Timeline</span>`;
+  }
   const cur = el("editor").dataset.id;
   if (APP.view === "timeline") {
     const groups = new Map();
@@ -1910,9 +1916,14 @@ function wire() {
     APP.filter.tag = null;
     renderAll();
   };
+  const updateSortBtnUi = () => {
+    const isNew = APP.filter.sort === "new";
+    el("sortBtn").innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${isNew ? "M3 6h18M6 12h12M9 18h6" : "M9 6h6M6 12h12M3 18h18"}"/></svg><span>${isNew ? "Newest first" : "Oldest first"}</span>`;
+  };
+  updateSortBtnUi();
   el("sortBtn").onclick = () => {
     APP.filter.sort = APP.filter.sort === "new" ? "old" : "new";
-    el("sortBtn").textContent = APP.filter.sort === "new" ? "Newest first" : "Oldest first";
+    updateSortBtnUi();
     renderList();
   };
   el("edToolbar").addEventListener("mousedown", ev => {
