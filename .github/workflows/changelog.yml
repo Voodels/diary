@@ -1,0 +1,41 @@
+name: changelog
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Regenerate CHANGELOG.md from history
+        shell: bash
+        run: |
+          {
+            echo "# Changelog"
+            echo
+            echo "_Auto-generated from git history; maintained by CI._"
+            echo
+            git log --date=short --pretty=format:"- %s — %ad" | grep -v "chore: update changelog" || true
+            echo
+          } > CHANGELOG.md
+
+      - name: Commit if changed
+        shell: bash
+        run: |
+          if ! git diff --quiet -- CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "chore: update changelog [skip ci]"
+            git push
+          else
+            echo "CHANGELOG.md already current"
+          fi
