@@ -263,6 +263,8 @@ function updateGateReactions() {
     APP.gate.stage = stage;
     Moods.setMood(GATE_STAGE_MOODS[stage]);
   }
+  const btn = el("gateSubmitBtn");
+  if (btn) btn.classList.toggle("has-val", !!el("gatePass").value.trim());
 }
 
 function gateWrong(msgMood) {
@@ -369,6 +371,8 @@ async function recoverTokenIfNeeded(key, hint) {
 
 function resetGate() {
   el("gatePass").value = "";
+  const btn = el("gateSubmitBtn");
+  if (btn) btn.classList.remove("has-val");
   el("lockMsg").textContent = "";
   APP.gate.stage = 0;
   APP.gate.wrongCount = 0;
@@ -580,15 +584,19 @@ function noteCardHtml(e, cur, i) {
     ? `<span class="chip sm"><span class="dot" style="--dot:${tagColor(tags[0])}"></span>${escapeHtml(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ""}</span>`
     : "";
   const upd = e.meta.updated || e.meta.created;
-  return `<div class="note-card${e.id === cur ? " selected" : ""}" data-id="${escapeHtml(e.id)}" style="--i:${i}">
-    <div class="nc-title">${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
+  const isPinned = !!e.meta.pinned;
+  return `<div class="note-card${e.id === cur ? " selected" : ""}${isPinned ? " is-pinned" : ""}" data-id="${escapeHtml(e.id)}" style="--i:${i}">
+    <div class="nc-title">${isPinned ? '<span class="nc-pin-indicator" title="Pinned">📌</span> ' : ""}${MOOD_EMOJI[e.meta.mood] ? `<span class="nc-mood">${MOOD_EMOJI[e.meta.mood]}</span> ` : ""}${escapeHtml(title)}</div>
     <div class="nc-snippet${clean ? "" : " empty"}">${escapeHtml(clean.slice(0, 96) || "empty page")}</div>
     <div class="nc-meta">
       <span class="nc-w">${w === 1 ? "1 word" : w + " words"}</span>
       ${tagChip}
       <span class="nc-time">${escapeHtml(fmtClock(upd))}</span>
     </div>
-    <button class="nc-del icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button>
+    <div class="nc-actions">
+      <button class="nc-pin icon-btn" data-act="pin" title="${isPinned ? "Unpin note" : "Pin note"}" aria-label="Pin"><svg viewBox="0 0 24 24" fill="${isPinned ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-2l-3-3V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v7l-3 3v2z"/></svg></button>
+      <button class="nc-del icon-btn" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6"/></svg></button>
+    </div>
   </div>`;
 }
 
@@ -596,9 +604,27 @@ function monthLabel(d) {
   return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
+function dateBucket(iso) {
+  if (!iso) return "Older";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "Older";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const entryDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today.getTime() - entryDay.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 7) return "Previous 7 Days";
+  if (diffDays <= 30) return "Previous 30 Days";
+  return d.getFullYear() === now.getFullYear()
+    ? d.toLocaleDateString(undefined, { month: "long" })
+    : d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
 function renderList() {
   const list = visibleEntries();
-  const q = (APP.filter.query || "").trim();
+  const q = (APP.filter.search || APP.filter.query || "").trim();
   const fTag = APP.filter.tag;
   el("listCount").textContent = list.length === 1 ? "1 note" : list.length + " notes";
   el("emptyState").hidden = !!list.length;
@@ -630,12 +656,44 @@ function renderList() {
     }).join("");
   } else {
     el("grid").classList.remove("timeline");
-    el("grid").innerHTML = list.map((e, i) => noteCardHtml(e, cur, i)).join("");
+    const pinned = list.filter(e => e.meta && e.meta.pinned);
+    const unpinned = list.filter(e => !e.meta || !e.meta.pinned);
+    let i = 0;
+    let html = "";
+    if (pinned.length > 0) {
+      html += `<div class="list-section-head">📌 Pinned <span class="muted">${pinned.length}</span></div>` +
+        pinned.map(e => noteCardHtml(e, cur, i++)).join("");
+    }
+    if (q || fTag || APP.filter.sort === "old") {
+      if (pinned.length > 0 && unpinned.length > 0) {
+        html += `<div class="list-section-head">Notes <span class="muted">${unpinned.length}</span></div>`;
+      }
+      html += unpinned.map(e => noteCardHtml(e, cur, i++)).join("");
+    } else {
+      const buckets = new Map();
+      for (const e of unpinned) {
+        const b = dateBucket(e.meta.updated || e.meta.created);
+        if (!buckets.has(b)) buckets.set(b, []);
+        buckets.get(b).push(e);
+      }
+      for (const [bucketName, items] of buckets.entries()) {
+        html += `<div class="list-section-head">${escapeHtml(bucketName)} <span class="muted">${items.length}</span></div>` +
+          items.map(e => noteCardHtml(e, cur, i++)).join("");
+      }
+    }
+    el("grid").innerHTML = html;
   }
   el("grid").querySelectorAll(".note-card").forEach(c => {
     c.onclick = ev => {
-      if (ev.target.closest("[data-act=del]")) return;
+      if (ev.target.closest("[data-act=del]") || ev.target.closest("[data-act=pin]")) return;
       openEditor(c.dataset.id);
+    };
+  });
+  el("grid").querySelectorAll('[data-act="pin"]').forEach(b => {
+    b.onclick = ev => {
+      ev.stopPropagation();
+      const card = b.closest(".note-card");
+      if (card) togglePinEntry(card.dataset.id);
     };
   });
   el("grid").querySelectorAll('[data-act="del"]').forEach(b => {
@@ -666,6 +724,66 @@ async function deleteEntry(id) {
     Log.push({ msg: "delete failed: " + err.message });
     toast("Delete failed: " + err.message, "err");
   }
+}
+
+function togglePinCurrent() {
+  const id = el("editor").dataset.id;
+  if (!id) { toast("Save or write something first to pin", "ok"); return; }
+  togglePinEntry(id);
+}
+
+async function togglePinEntry(id) {
+  const e = APP.entries.find(x => x.id === id);
+  if (!e) return;
+  e.meta.pinned = !e.meta.pinned;
+  e.meta.updated = new Date().toISOString();
+  if (el("editor").dataset.id === id) {
+    updatePinButton(!!e.meta.pinned);
+  }
+  renderList();
+  toast(e.meta.pinned ? "Pinned to top 📌" : "Unpinned", "ok");
+  const prev = saveInflight.get(id) || Promise.resolve();
+  const job = prev.catch(() => {}).then(() => persistEntry(e, e));
+  saveInflight.set(id, job);
+  job.finally(() => { if (saveInflight.get(id) === job) saveInflight.delete(id); });
+}
+
+function updatePinButton(isPinned) {
+  const btn = el("pinEntryBtn");
+  if (!btn) return;
+  btn.classList.toggle("pinned", isPinned);
+  btn.title = isPinned ? "Unpin note (Cmd+P)" : "Pin note (Cmd+P)";
+  const svg = btn.querySelector("svg");
+  if (svg) svg.setAttribute("fill", isPinned ? "currentColor" : "none");
+}
+
+const FONT_MODES = ["sans", "serif", "mono"];
+
+function applyFontMode(mode) {
+  if (!FONT_MODES.includes(mode)) mode = "sans";
+  try { localStorage.setItem("ediary_font_mode", mode); } catch (e) {}
+  const ed = el("editor");
+  if (ed) {
+    ed.classList.remove("font-sans", "font-serif", "font-mono");
+    ed.classList.add("font-" + mode);
+  }
+  const row = el("fontSelectRow");
+  if (row) {
+    row.querySelectorAll(".font-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.font === mode);
+    });
+  }
+}
+
+function wireFontSwitcher() {
+  const row = el("fontSelectRow");
+  if (!row) return;
+  row.querySelectorAll(".font-btn").forEach(b => {
+    b.onclick = () => applyFontMode(b.dataset.font);
+  });
+  let saved = "sans";
+  try { saved = localStorage.getItem("ediary_font_mode") || "sans"; } catch (e) {}
+  applyFontMode(saved);
 }
 
 /* ── editor ────────────────────────────────────── */
@@ -789,9 +907,11 @@ function openEditor(id) {
   el("edText").value = e ? e.text || "" : "";
   el("edDate").textContent = fmtShort(e ? (e.meta.created || e.meta.updated) : new Date().toISOString());
   el("edEdited").textContent = e ? "edited " + fmtDateTime(e.meta.updated || e.meta.created) : "unsaved";
+  updatePinButton(!!(e && e.meta && e.meta.pinned));
   restoreDraftIfAny(id, e);
   hideSlashMenu();
   updateCount();
+  autoResizeTextarea();
   if (isSplit()) {
     el("previewPane").hidden = false;
     renderPreviewLive();
@@ -819,6 +939,7 @@ function restoreDraftIfAny(id, e) {
     ED_MOOD = d.mood || ED_MOOD;
     renderEdMoods();
     el("edText").value = d.text;
+    autoResizeTextarea();
     el("edEdited").textContent = "restored draft " + new Date(d.at).toLocaleTimeString();
   } else {
     localStorage.removeItem(DRAFT_KEY);
@@ -827,6 +948,7 @@ function restoreDraftIfAny(id, e) {
 
 function closeEditor() {
   el("editor").classList.remove("open");
+  updatePinButton(false);
   renderList();
 }
 
@@ -846,6 +968,7 @@ async function saveEntry() {
       title: title || "Untitled",
       tags,
       mood: ED_MOOD || undefined,
+      pinned: existing && existing.meta ? !!existing.meta.pinned : false,
       created: existing ? existing.meta.created : now,
       updated: now,
       images: existing ? existing.meta.images || [] : []
@@ -996,8 +1119,16 @@ function updateCount() {
   el("edCount").textContent = words === 1 ? "1 word" : words + " words";
 }
 
+function autoResizeTextarea() {
+  const ta = el("edText");
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = Math.max(380, ta.scrollHeight) + "px";
+}
+
 function afterEdit() {
   updateCount();
+  autoResizeTextarea();
   if (!el("previewPane").hidden) renderPreviewLive();
 }
 
@@ -1050,6 +1181,46 @@ function clearDraft(id) {
   } catch (e) {}
 }
 
+let autosaveTimer = null;
+function triggerAutosave() {
+  const statusEl = el("edAutosaveStatus");
+  if (statusEl) statusEl.textContent = "Saving…";
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(async () => {
+    if (!el("editor").classList.contains("open") || !APP.key) return;
+    const id = el("editor").dataset.id || uid();
+    el("editor").dataset.id = id;
+    const title = el("edTitle").value.trim();
+    const text = el("edText").value;
+    if (!title && !text.trim()) return;
+    const existing = APP.entries.find(x => x.id === id);
+    const now = new Date().toISOString();
+    const entry = {
+      id,
+      meta: {
+        title: title || "Untitled",
+        tags: [...ED_TAGS],
+        mood: ED_MOOD || undefined,
+        pinned: existing && existing.meta ? !!existing.meta.pinned : false,
+        created: existing ? existing.meta.created : now,
+        updated: now,
+        images: existing ? existing.meta.images || [] : []
+      },
+      text
+    };
+    const i = APP.entries.findIndex(x => x.id === id);
+    if (i >= 0) APP.entries[i] = entry; else APP.entries.push(entry);
+    clearDraft(id);
+    renderList();
+    if (statusEl) statusEl.textContent = "Saved ✓";
+    setTimeout(() => { if (statusEl && statusEl.textContent === "Saved ✓") statusEl.textContent = ""; }, 2500);
+    const prev = saveInflight.get(id) || Promise.resolve();
+    const job = prev.catch(() => {}).then(() => persistEntry(entry, existing));
+    saveInflight.set(id, job);
+    job.finally(() => { if (saveInflight.get(id) === job) saveInflight.delete(id); });
+  }, 1200);
+}
+
 function saveDraftSoon() {
   clearTimeout(saveDraftSoon.timer);
   saveDraftSoon.timer = setTimeout(() => {
@@ -1067,7 +1238,8 @@ function saveDraftSoon() {
         at: new Date().toISOString()
       }));
     } catch (e) {}
-  }, 4000);
+  }, 1000);
+  triggerAutosave();
 }
 
 const TABLE_TPL = "| column A | column B |\n| --- | --- |\n| | |";
@@ -1522,6 +1694,95 @@ function caretCoordinates(ta, pos) {
   return { left, top, lineHeight };
 }
 
+function updateFloatingToolbar() {
+  const ft = el("floatingToolbar");
+  if (!ft) return;
+  const ta = el("edText");
+  if (!ta || document.activeElement !== ta || ta.hidden || ta.selectionStart === ta.selectionEnd) {
+    ft.hidden = true;
+    return;
+  }
+  const s = ta.selectionStart;
+  const e2 = ta.selectionEnd;
+  const mid = Math.round((s + e2) / 2);
+  try {
+    const c = caretCoordinates(ta, mid);
+    const top = Math.max(10, c.top - 46);
+    const left = Math.min(window.innerWidth - 280, Math.max(10, c.left - 100));
+    ft.style.top = top + "px";
+    ft.style.left = left + "px";
+    ft.hidden = false;
+  } catch (err) {
+    ft.hidden = true;
+  }
+}
+
+function hideFloatingToolbar() {
+  const ft = el("floatingToolbar");
+  if (ft) ft.hidden = true;
+}
+
+function wireFloatingToolbar() {
+  const ft = el("floatingToolbar");
+  if (!ft) return;
+  ft.querySelectorAll(".ft-btn").forEach(b => {
+    b.addEventListener("mousedown", ev => {
+      ev.preventDefault();
+      tbAction(b.dataset.act);
+      updateFloatingToolbar();
+    });
+  });
+}
+
+function toggleSidebar() {
+  const shell = document.querySelector(".shell");
+  if (!shell) return;
+  shell.classList.toggle("sidebar-collapsed");
+  try {
+    localStorage.setItem("ediary_sidebar_collapsed", shell.classList.contains("sidebar-collapsed") ? "1" : "0");
+  } catch (e) {}
+}
+
+function selectAdjacentNote(dir) {
+  const list = visibleEntries();
+  if (!list.length) return;
+  const cur = el("editor").dataset.id;
+  const idx = list.findIndex(e => e.id === cur);
+  let nextIdx = idx === -1 ? 0 : idx + dir;
+  if (nextIdx < 0) nextIdx = 0;
+  if (nextIdx >= list.length) nextIdx = list.length - 1;
+  openEditor(list[nextIdx].id);
+}
+
+function wirePreviewTasks() {
+  const pane = el("previewPane");
+  if (!pane) return;
+  pane.addEventListener("click", ev => {
+    const taskBox = ev.target.closest(".task-box");
+    const taskLi = ev.target.closest("li.task");
+    if (!taskBox && !taskLi) return;
+    const li = taskLi || taskBox.closest("li.task");
+    if (!li) return;
+    const textSpan = li.querySelector("span:last-child");
+    if (!textSpan) return;
+    const taskText = textSpan.textContent.trim();
+    const ta = el("edText");
+    const lines = ta.value.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      const m = l.match(/^- \[( |x|X)\] (.*)$/);
+      if (m && m[2].trim() === taskText) {
+        const isDone = m[1].toLowerCase() === "x";
+        lines[i] = `- [${isDone ? " " : "x"}] ${m[2]}`;
+        ta.value = lines.join("\n");
+        renderPreviewLive();
+        saveDraftSoon();
+        break;
+      }
+    }
+  });
+}
+
 function slashDetection() {
   const ta = el("edText");
   if (document.activeElement !== ta || ta.hidden) { hideSlashMenu(); return; }
@@ -1615,6 +1876,8 @@ function wire() {
 
   el("gatePass").addEventListener("input", updateGateReactions);
   el("gatePass").addEventListener("keydown", e => { if (e.key === "Enter") unlockAttempt(); });
+  const gateBtn = el("gateSubmitBtn");
+  if (gateBtn) gateBtn.onclick = unlockAttempt;
   el("goLock").onclick = e => { e.preventDefault(); showScreen("gate"); resetGate(); };
   el("createBtn").onclick = doCreateVault;
   el("setupWaifu2").addEventListener("keydown", e => { if (e.key === "Enter") doCreateVault(); });
@@ -1669,6 +1932,7 @@ function wire() {
   el("edText").addEventListener("input", () => {
     autoTodo();
     updateCount();
+    autoResizeTextarea();
     slashDetection();
     saveDraftSoon();
     clearTimeout(previewTimer);
@@ -1716,6 +1980,23 @@ function wire() {
   document.addEventListener("keydown", e => {
     const k = e.key.toLowerCase();
     const editorOpen = el("editor").classList.contains("open");
+    if ((e.ctrlKey || e.metaKey) && (e.key === "\\" || e.code === "Backslash")) {
+      e.preventDefault();
+      toggleSidebar();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && k === "n") {
+      e.preventDefault();
+      newPage();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && k === "p") {
+      if (editorOpen) {
+        e.preventDefault();
+        togglePinCurrent();
+        return;
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && k === "k") {
       if (e.defaultPrevented) return;
       e.preventDefault();
@@ -1731,6 +2012,33 @@ function wire() {
     if (e.key === "Escape" && editorOpen && !SLASH.open) {
       if (el("settingsModal").classList.contains("open")) return;
       closeEditor();
+    }
+  });
+
+  if (el("sidebarToggle")) el("sidebarToggle").onclick = toggleSidebar;
+  if (el("sidebarToggleBtn")) el("sidebarToggleBtn").onclick = toggleSidebar;
+  if (localStorage.getItem("ediary_sidebar_collapsed") === "1") {
+    const sh = document.querySelector(".shell");
+    if (sh) sh.classList.add("sidebar-collapsed");
+  }
+
+  if (el("pinEntryBtn")) el("pinEntryBtn").onclick = togglePinCurrent;
+  wireFontSwitcher();
+  wireFloatingToolbar();
+  wirePreviewTasks();
+
+  el("edText").addEventListener("select", updateFloatingToolbar);
+  el("edText").addEventListener("mouseup", () => setTimeout(updateFloatingToolbar, 20));
+  el("edText").addEventListener("keyup", () => setTimeout(updateFloatingToolbar, 20));
+  el("edText").addEventListener("blur", () => setTimeout(hideFloatingToolbar, 250));
+  window.addEventListener("resize", autoResizeTextarea);
+
+  el("searchBox").addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); selectAdjacentNote(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); selectAdjacentNote(-1); }
+    else if (e.key === "Enter") {
+      const list = visibleEntries();
+      if (list.length) { openEditor(list[0].id); el("edText").focus(); }
     }
   });
   el("imageInput").addEventListener("change", e => {
